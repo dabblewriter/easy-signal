@@ -1,6 +1,6 @@
 {
   "name": "easy-signal",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A tiny (10 LOC), simple utility for alerting subscribers when an event happens.",
   "main": "index.js",
   "scripts": {
