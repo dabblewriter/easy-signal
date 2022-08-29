@@ -20,10 +20,10 @@ Signals offer similar functionality as the browser's `eventDispatcher` API, but 
 // file seconds.ts
 import { signal } from 'easy-signal';
 
-// Create the signal and export it for outside use
+// Create the signal and export it for use. Optionally provide the subscriber signature
 export const onSecond = signal<(second: number) => any>();
 
-setInterval(() => onMessage.dispatch(Math.floor(Date.now() / 1000)));
+setInterval(() => onSecond.dispatch(Math.floor(Date.now() / 1000)));
 ```
 
 ```ts

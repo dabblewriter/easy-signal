@@ -1,11 +1,13 @@
 type Args<T> = T extends (...args: infer A) => any ? A : never;
+export type Subscriber = (...args: any[]) => any;
+export type Unsubscriber = () => boolean;
 
-export type Signal<T extends (...args: any[]) => any = (...args: any[]) => any> = {
-  (listener: T): () => boolean;
+export type Signal<T extends Subscriber = Subscriber> = {
+  (listener: T): Unsubscriber;
   dispatch: (...args: Args<T>) => void;
 }
 
-export function signal<T extends (...args: any[]) => any>(): Signal<T> {
+export function signal<T extends Subscriber = Subscriber>(): Signal<T> {
   const listeners = new Set<T>();
 
   function subscribe(listener: T) {
