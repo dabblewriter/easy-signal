@@ -1,10 +1,11 @@
 {
   "name": "easy-signal",
   "version": "1.0.0",
-  "description": "A tiny (9 LOC), simple utility for alerting subscribers when an event happens.",
+  "description": "A tiny (10 LOC), simple utility for alerting subscribers when an event happens.",
   "main": "index.js",
   "scripts": {
-    "build": "tsc"
+    "build": "tsc",
+    "prepare": "tsc"
   },
   "repository": {
     "type": "git",
