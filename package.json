@@ -1,0 +1,29 @@
+{
+  "name": "easy-signal",
+  "version": "1.0.0",
+  "description": "A tiny (9 LOC), simple utility for alerting subscribers when an event happens.",
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dabblewriter/easy-signal.git"
+  },
+  "keywords": [
+    "Signal",
+    "events",
+    "typescript",
+    "subscriber",
+    "dispatcher"
+  ],
+  "author": "Jacob Wright",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/dabblewriter/easy-signal/issues"
+  },
+  "homepage": "https://github.com/dabblewriter/easy-signal#readme",
+  "devDependencies": {
+    "typescript": "^4.8.2"
+  }
+}
