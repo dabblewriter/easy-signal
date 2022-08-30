@@ -34,3 +34,16 @@ const unsubscribe = onSecond(seconds => {
   console.log(seconds, 'since epoc');
 });
 ```
+
+The TypeScript definition has been extended to allow an `error` signal to be added to an existing signal for situations
+where a signal may need to handle errors.
+
+```ts
+import { signal } from 'easy-signal';
+
+const dataStream = signal();
+dataStream.error = signal();
+
+stream.on('data', obj => dataStream.dispatch(obj))
+stream.on('error', err => dataStream.error.dispatch(err))
+```

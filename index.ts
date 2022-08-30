@@ -5,6 +5,7 @@ export type Unsubscriber = () => boolean;
 export type Signal<T extends Subscriber = Subscriber> = {
   (listener: T): Unsubscriber;
   dispatch: (...args: Args<T>) => void;
+  error?: Signal<(err: Error) => any>;
 }
 
 export function signal<T extends Subscriber = Subscriber>(): Signal<T> {
