@@ -21,9 +21,10 @@ Signals offer similar functionality as the browser's `eventDispatcher` API, but 
 import { signal } from 'easy-signal';
 
 // Create the signal and export it for use. Optionally provide the subscriber signature
-export const onSecond = signal<(second: number) => any>();
+export const onSecond = signal<number>();
 
-setInterval(() => onSecond.dispatch(Math.floor(Date.now() / 1000)));
+// Passing a non-function value will dispatch the event
+setInterval(() => onSecond(Math.floor(Date.now() / 1000)));
 ```
 
 ```ts
@@ -35,15 +36,27 @@ const unsubscribe = onSecond(seconds => {
 });
 ```
 
-The TypeScript definition has been extended to allow an `error` signal to be added to an existing signal for situations
-where a signal may need to handle errors.
+Errors may also be listened to and dispatched from the signal by using the second parameter when adding the listener
+and by passing an Error object to the dispatch.
 
 ```ts
 import { signal } from 'easy-signal';
 
 const dataStream = signal();
-dataStream.error = signal();
 
-stream.on('data', obj => dataStream.dispatch(obj))
-stream.on('error', err => dataStream.error.dispatch(err))
+dataStream(data => console.log('data is:' data));
+dataStream(error => console.log('Error is:' error), { captureErrors: true });
+
+stream.on('data', obj => dataStream(obj));
+stream.on('error', err => dataStream(err));
+```
+
+To clear the listeners from the signal, pass in the `ClearSignal` constant.
+
+```ts
+import { signal, ClearSignal } from 'easy-signal';
+
+const onSomething = signal();
+
+onSomething(ClearSignal); // clears signal
 ```
