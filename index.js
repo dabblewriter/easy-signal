@@ -1,4 +1,6 @@
-export const ClearSignal = {};
+export const ClearSignal = Symbol();
+export const GetOnSignal = Symbol();
+export const ForErrors = Symbol();
 /**
  * Creates a signal, a function that can be used to subscribe to events. The signal can be called with a subscriber
  * function, which will be called when the signal is dispatched. The signal can also be called with data, which will
@@ -19,24 +21,31 @@ export const ClearSignal = {};
 export function signal() {
     const subscribers = new Set();
     const errorListeners = new Set();
-    function subscribe(arg, options) {
+    function onSignal(subscriber, what) {
+        const listeners = what === ForErrors ? errorListeners : subscribers;
+        listeners.add(subscriber);
+        return () => {
+            listeners.delete(subscriber);
+        };
+    }
+    function signal(...args) {
+        const arg = args[0];
         if (typeof arg === 'function') {
-            const listeners = options?.captureErrors ? errorListeners : subscribers;
-            listeners.add(arg);
-            return () => {
-                listeners.delete(arg);
-            };
+            return onSignal(arg);
         }
         else if (arg === ClearSignal) {
             subscribers.clear();
             errorListeners.clear();
         }
+        else if (arg === GetOnSignal) {
+            return onSignal;
+        }
         else if (arg instanceof Error) {
             errorListeners.forEach(listener => listener(arg));
         }
         else {
-            subscribers.forEach(listener => listener(arg));
+            subscribers.forEach(listener => listener(...args));
         }
     }
-    return subscribe;
+    return signal;
 }

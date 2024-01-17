@@ -1,14 +1,24 @@
-export type Subscriber<T> = (data: T) => any;
+type Args<T> = T extends (...args: infer A) => any ? A : never;
+export type Subscriber = (...args: any[]) => any;
+export type ErrorSubscriber = (error: Error) => any;
 export type Unsubscriber = () => void;
 
-export type Signal<T> = {
-  (data: T): void;
-  (data: Error): void;
-  (subscriber: Subscriber<T>): Unsubscriber;
-  (errorListener: Subscriber<Error>, options: { captureErrors: true }): Unsubscriber;
+export type OnSignal<T extends Subscriber = Subscriber> = {
+  (subscriber: T): Unsubscriber;
+  (errorListener: ErrorSubscriber, what: typeof ForErrors): Unsubscriber;
 }
 
-export const ClearSignal = {};
+export type Signal<T extends Subscriber = Subscriber> = OnSignal<T> & {
+  (...args: Args<T>): void;
+  (data: Error): void;
+  (data: typeof ClearSignal): void;
+  (data: typeof GetOnSignal): OnSignal<T>;
+}
+
+export const ClearSignal = Symbol();
+export const GetOnSignal = Symbol();
+export const ForErrors = Symbol();
+
 
 /**
  * Creates a signal, a function that can be used to subscribe to events. The signal can be called with a subscriber
@@ -27,30 +37,39 @@ export const ClearSignal = {};
  * onLoad('data'); // logs 'loaded data'
  * onLoad(new Error('error')); // logs 'error Error: error'
  */
-export function signal<T = any>(): Signal<T> {
-  const subscribers = new Set<Subscriber<T>>();
-  const errorListeners = new Set<Subscriber<Error>>();
+export function signal<T extends Subscriber = Subscriber>(): Signal<T> {
+  const subscribers = new Set<Subscriber>();
+  const errorListeners = new Set<Subscriber>();
 
-  function subscribe(data: T): void;
-  function subscribe(error: Error): void;
-  function subscribe(subscriber: Subscriber<T>): Unsubscriber;
-  function subscribe(listener: Subscriber<Error>, options: { captureErrors: true }): Unsubscriber;
-  function subscribe(arg: T | Error | Subscriber<T> | Subscriber<Error>, options?: { captureErrors: true }): Unsubscriber {
-    if (typeof arg === 'function') {
-      const listeners = options?.captureErrors ? errorListeners : subscribers;
-      listeners.add(arg as any);
+  function onSignal(subscriber: T | ErrorSubscriber, what?: typeof ForErrors): Unsubscriber {
+    const listeners = what === ForErrors ? errorListeners : subscribers;
+      listeners.add(subscriber);
       return () => {
-        listeners.delete(arg as any);
+        listeners.delete(subscriber);
       };
+  }
+
+  function signal(...args: Args<T>): void;
+  function signal(error: Error): void;
+  function signal(data: typeof ClearSignal): void;
+  function signal(data: typeof GetOnSignal): OnSignal<T>;
+  function signal(subscriber: T): Unsubscriber;
+  function signal(errorListener: Subscriber, what: typeof ForErrors): Unsubscriber;
+  function signal(...args: any[]): Unsubscriber | OnSignal<T> | void {
+    const arg = args[0];
+    if (typeof arg === 'function') {
+      return onSignal(arg);
     } else if (arg === ClearSignal) {
       subscribers.clear();
       errorListeners.clear();
+    } else if (arg === GetOnSignal) {
+      return onSignal as OnSignal<T>;
     } else if (arg instanceof Error) {
       errorListeners.forEach(listener => listener(arg));
     } else {
-      subscribers.forEach(listener => listener(arg));
+      subscribers.forEach(listener => listener(...args));
     }
   }
 
-  return subscribe;
+  return signal;
 }

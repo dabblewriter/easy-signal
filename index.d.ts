@@ -1,14 +1,20 @@
-export declare type Subscriber<T> = (data: T) => any;
+declare type Args<T> = T extends (...args: infer A) => any ? A : never;
+export declare type Subscriber = (...args: any[]) => any;
+export declare type ErrorSubscriber = (error: Error) => any;
 export declare type Unsubscriber = () => void;
-export declare type Signal<T> = {
-    (data: T): void;
-    (data: Error): void;
-    (subscriber: Subscriber<T>): Unsubscriber;
-    (errorListener: Subscriber<Error>, options: {
-        captureErrors: true;
-    }): Unsubscriber;
+export declare type OnSignal<T extends Subscriber = Subscriber> = {
+    (subscriber: T): Unsubscriber;
+    (errorListener: ErrorSubscriber, what: typeof ForErrors): Unsubscriber;
 };
-export declare const ClearSignal: {};
+export declare type Signal<T extends Subscriber = Subscriber> = OnSignal<T> & {
+    (...args: Args<T>): void;
+    (data: Error): void;
+    (data: typeof ClearSignal): void;
+    (data: typeof GetOnSignal): OnSignal<T>;
+};
+export declare const ClearSignal: unique symbol;
+export declare const GetOnSignal: unique symbol;
+export declare const ForErrors: unique symbol;
 /**
  * Creates a signal, a function that can be used to subscribe to events. The signal can be called with a subscriber
  * function, which will be called when the signal is dispatched. The signal can also be called with data, which will
@@ -26,4 +32,5 @@ export declare const ClearSignal: {};
  * onLoad('data'); // logs 'loaded data'
  * onLoad(new Error('error')); // logs 'error Error: error'
  */
-export declare function signal<T = any>(): Signal<T>;
+export declare function signal<T extends Subscriber = Subscriber>(): Signal<T>;
+export {};
