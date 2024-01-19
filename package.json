@@ -25,7 +25,6 @@
   },
   "homepage": "https://github.com/dabblewriter/easy-signal#readme",
   "devDependencies": {
-    "@types/web": "^0.0.135",
     "typescript": "^4.8.2"
   }
 }

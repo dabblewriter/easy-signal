@@ -6,7 +6,7 @@ export const Timing = {
     },
     // Execute the function on the next animation frame
     AnimationFrame: (fn) => {
-        requestAnimationFrame(fn);
+        globalThis.requestAnimationFrame(fn);
     },
 };
 // The context for the current run and its unsubscribes

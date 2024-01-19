@@ -15,7 +15,7 @@ export const Timing = {
   },
   // Execute the function on the next animation frame
   AnimationFrame: (fn: () => void) => {
-    requestAnimationFrame(fn);
+    (globalThis as any).requestAnimationFrame(fn);
   },
 };
 
