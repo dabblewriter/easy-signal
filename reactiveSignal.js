@@ -84,7 +84,7 @@ export function reactiveSignal(value, options) {
  *
  * The returned function can be called to unsubscribe from the Signal.
  */
-export function subscribe(signal, subscriber, timing) {
+export function subscribe(signal, subscriber, timing = Timing.Tick) {
     if (timing) {
         let queued = false;
         const subFn = subscriber;

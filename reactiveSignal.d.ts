@@ -50,7 +50,7 @@ export declare type ReactiveSignalObserver = () => void;
  * function at some point in the future. The default timing is `Timing.Immediate` which executes the function
  * immediately.
  */
-export declare type Timing = (fn: () => void) => Cancel;
+export declare type Timing = (fn: () => void) => void;
 /**
  * A Subscription Change is a function that will be called whenever the signal's subscribers changes from none to some
  * or some to none. The subscription change will be called with a boolean indicating whether there are any subscribers.
@@ -74,7 +74,7 @@ export declare function reactiveSignal<T>(value: T, options?: SignalOptions<T>):
  *
  * The returned function can be called to unsubscribe from the Signal.
  */
-export declare function subscribe<T>(signal: ReactiveSignal<T>, subscriber: ReactiveSignalSubscriber<T>, timing?: Timing): Unsubscribe;
+export declare function subscribe<T>(signal: ReactiveSignal<T>, subscriber: ReactiveSignalSubscriber<T>, timing?: Timing | null): Unsubscribe;
 /**
  * Get notified when a Signal's subscribers changes from none to some or some to none.
  */
