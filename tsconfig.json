@@ -3,14 +3,15 @@
     "target": "es2021",
     "declaration": true,
     "moduleResolution": "node",
+    "sourceMap": true,
     "esModuleInterop": true,
     "allowJs": true,
     "allowSyntheticDefaultImports": true,
     "isolatedModules": true,
-    "lib": [
-      "es2021"
-    ],
-    "resolveJsonModule": true
+    "lib": ["es2021"],
+    "resolveJsonModule": true,
+    "outDir": "dist"
   },
+  "include": ["src"],
   "exclude": ["node_modules"]
 }

@@ -1,11 +1,14 @@
 {
   "name": "easy-signal",
-  "version": "3.0.3",
+  "version": "3.0.4",
   "description": "A tiny (25 LOC), simple utility for alerting subscribers when an event happens, allowing for error handling and clearing.",
-  "main": "index.js",
+  "files": [
+    "dist"
+  ],
+  "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
-    "prepare": "tsc",
+    "watch": "tsc --watch",
     "prepublishOnly": "tsc"
   },
   "repository": {
