@@ -11,7 +11,7 @@ export type Cancel = () => void;
 export const Timing = {
   // Execute the function on the next tick of the event loop
   Tick: (fn: () => void) => {
-    Promise.resolve(fn);
+    Promise.resolve().then(fn);
   },
   // Execute the function on the next animation frame
   AnimationFrame: (fn: () => void) => {
