@@ -120,13 +120,13 @@ setInterval(() => {
 ```
 
 ```ts
-import { onSecond, subscribe } from './seconds.ts';
+import { onSecond } from './seconds.ts';
 
 // Get the value of onSecond() at any time
 console.log(onSecond(), 'since epoc');
 
 // Typescript knows that seconds is a number because of the concrete type definition in seconds.ts
-const unsubscribe = subscribe(onSecond, seconds => {
+const unsubscribe = onSecond.subscribe(seconds => {
   console.log(seconds, 'since epoc');
 });
 ```
@@ -157,7 +157,7 @@ const unobserve = observe(() => {
 Create read-only signals whose value is derived from other signals and which will be updated whenever they are.
 
 ```ts
-import { computedSignal, subscribe } from 'easy-signal';
+import { computedSignal } from 'easy-signal';
 import { user, billing } from 'my-other-signals';
 
 const delinquent = computedSignal(() => {
@@ -167,7 +167,7 @@ const delinquent = computedSignal(() => {
   return false;
 });
 
-subscribe(delinquent, delinquent => {
+delinquent.subscribe(delinquent => {
   console.log(`The user is${delinquent ? '' : ' not'} delinquent`);
 });
 ```

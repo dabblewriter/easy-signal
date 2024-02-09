@@ -39,6 +39,7 @@ export type ReactiveSignal<T> = {
   (): T;
   (value: T | ReactiveSignalUpdater<T>, set?: false): T;
   (value: T, set: true): T;
+  subscribe: (subscriber: ReactiveSignalSubscriber<T>, timing?: Timing | null) => Unsubscribe;
 };
 
 /**
@@ -147,6 +148,9 @@ export function reactiveSignal<T>(value: T, options?: SignalOptions<T>): Reactiv
     }
     return value;
   }) as ReactiveSignal<T>;
+
+  signal.subscribe = (subscriber: ReactiveSignalSubscriber<T>, timing: Timing | null = Timing.Tick) =>
+    subscribe(signal, subscriber, timing);
 
   // Return the signal function
   return signal;
@@ -305,6 +309,7 @@ export function computedSignal<T>(fn: ReactiveSignalUpdater<T>, when?: Timing): 
   });
 
   const computed = () => (unsubscribe ? signal() : signal(fn));
+  computed.subscribe = signal.subscribe;
 
   // Return the signal
   return computed;
