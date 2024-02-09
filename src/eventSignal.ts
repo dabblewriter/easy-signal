@@ -9,8 +9,8 @@ export type OnSignal<T extends EventSignalSubscriber = EventSignalSubscriber> = 
 };
 
 export type EventSignal<T extends EventSignalSubscriber = EventSignalSubscriber> = OnSignal<T> & {
-  (...args: Args<T>): void;
-  (data: Error): void;
+  (...args: Args<T>): Promise<void>;
+  (data: Error): Promise<void>;
   (data: typeof ClearSignal): void;
   (data: typeof GetSubscribe): OnSignal<T>;
 };
