@@ -12,11 +12,11 @@ export type EventSignal<T extends EventSignalSubscriber = EventSignalSubscriber>
   (...args: Args<T>): void;
   (data: Error): void;
   (data: typeof ClearSignal): void;
-  (data: typeof GetOnSignal): OnSignal<T>;
+  (data: typeof GetSubscribe): OnSignal<T>;
 };
 
 export const ClearSignal = Symbol();
-export const GetOnSignal = Symbol();
+export const GetSubscribe = Symbol();
 export const ForErrors = Symbol();
 
 /**
@@ -48,25 +48,25 @@ export function eventSignal<T extends EventSignalSubscriber = EventSignalSubscri
     };
   }
 
-  function signal(...args: Args<T>): void;
-  function signal(error: Error): void;
+  function signal(...args: Args<T>): Promise<void>;
+  function signal(error: Error): Promise<void>;
   function signal(data: typeof ClearSignal): void;
-  function signal(data: typeof GetOnSignal): OnSignal<T>;
+  function signal(data: typeof GetSubscribe): OnSignal<T>;
   function signal(subscriber: T): Unsubscriber;
   function signal(errorListener: EventSignalSubscriber, what: typeof ForErrors): Unsubscriber;
-  function signal(...args: any[]): Unsubscriber | OnSignal<T> | void {
+  function signal(...args: any[]): Unsubscriber | OnSignal<T> | void | Promise<void> {
     const arg = args[0];
     if (typeof arg === 'function') {
       return onSignal(arg);
     } else if (arg === ClearSignal) {
       subscribers.clear();
       errorListeners.clear();
-    } else if (arg === GetOnSignal) {
+    } else if (arg === GetSubscribe) {
       return onSignal as OnSignal<T>;
     } else if (arg instanceof Error) {
-      errorListeners.forEach(listener => listener(arg));
+      return Promise.all(Array.from(errorListeners).map(listener => listener(arg))).then(() => {});
     } else {
-      subscribers.forEach(listener => listener(...args));
+      return Promise.all(Array.from(subscribers).map(listener => listener(...args))).then(() => {});
     }
   }
 
