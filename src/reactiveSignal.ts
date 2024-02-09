@@ -35,19 +35,20 @@ const onSubscriptionChanges = new WeakMap<ReactiveSignal<any>, Set<SubscriptionC
  * the first argument is a function or `undefined` since the signal will assume any function is an updater function and
  * any `undefined` value is a request to get the current value.
  */
-export type ReactiveSignal<T> = {
-  (): T;
+export interface ReactiveSignal<T> extends ComputedSignal<T> {
   (value: T | ReactiveSignalUpdater<T>, set?: false): T;
   (value: T, set: true): T;
-  subscribe: (subscriber: ReactiveSignalSubscriber<T>, timing?: Timing | null) => Unsubscribe;
-};
+}
 
 /**
  * A Computed Signal is a signal that is the result of a function that depends on other signals. The function is called
  * whenever the computed signal is accessed if there are no subscribers, or whenever its dependent signals change if
  * there are subscribers so that subscribers to the computed signal can be informed.
  */
-export type ComputedSignal<T> = () => T;
+export interface ComputedSignal<T> {
+  (): T;
+  subscribe: (subscriber: ReactiveSignalSubscriber<T>, timing?: Timing | null) => Unsubscribe;
+}
 
 /**
  * A Signal Subscriber is a function that will be called whenever the signal's value changes. The subscriber will be
