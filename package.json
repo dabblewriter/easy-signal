@@ -1,6 +1,6 @@
 {
   "name": "easy-signal",
-  "version": "3.2.1",
+  "version": "3.2.2",
   "description": "A tiny (25 LOC), simple utility for alerting subscribers when an event happens, allowing for error handling and clearing.",
   "main": "dist/index.js",
   "scripts": {
