@@ -20,7 +20,8 @@ export const Timing = {
 };
 
 // The context for the current run and its unsubscribes
-let context: { subscriber: ReactiveSignalSubscriber<any>; unsubscribes: Set<Unsubscribe> } | null = null;
+type Context = { prior: Context | null; subscriber: ReactiveSignalSubscriber<any>; unsubscribes: Set<Unsubscribe> };
+let context: Context | null = null;
 
 // A map to keep track of listeners to subscription changes
 const onSubscriptionChanges = new WeakMap<ReactiveSignal<any>, Set<SubscriptionChange>>();
@@ -186,7 +187,7 @@ export function subscribe<T>(
   }
 
   // Set the current context so we can get the unsubscribe
-  context = { subscriber, unsubscribes: new Set() };
+  context = { prior: context, subscriber, unsubscribes: new Set() };
 
   // Get the current value of the signal
   const value = signal();
@@ -195,7 +196,7 @@ export function subscribe<T>(
   const unsubscribe = context.unsubscribes.values().next().value;
 
   // Clear the current context
-  context = null;
+  context = context.prior;
 
   // Call the subscriber with the current value
   subscriber(value);
@@ -254,7 +255,7 @@ export function observe(fn: ReactiveSignalObserver, timing?: Timing): Unsubscrib
     dirty = false;
 
     // Set the context for the effect
-    context = { subscriber, unsubscribes: new Set() };
+    context = { prior: context, subscriber, unsubscribes: new Set() };
 
     // Run the effect collecting all the unsubscribes from the signals that are called when it is run
     fn();
@@ -269,7 +270,7 @@ export function observe(fn: ReactiveSignalObserver, timing?: Timing): Unsubscrib
     unsubscribes = context.unsubscribes;
 
     // Clear the context
-    context = null;
+    context = context.prior;
   };
 
   // Call immediately (or on the next timing)
