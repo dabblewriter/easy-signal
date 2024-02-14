@@ -49,7 +49,7 @@ export interface ReactiveSignal<T> extends ComputedSignal<T> {
  */
 export interface ComputedSignal<T> {
   (): T;
-  subscribe: (subscriber: ReactiveSignalSubscriber<T>, timing?: Timing | null, deferInitial?: boolean) => Unsubscribe;
+  subscribe: (subscriber: ReactiveSignalSubscriber<T>, when?: Timing | null, deferInitial?: boolean) => Unsubscribe;
 }
 
 /**
@@ -219,7 +219,7 @@ export function onSubscriptionChange(
   onChange: (hasSubscribers: boolean) => void
 ): Unsubscribe {
   // Get the set of onChange functions for the signal
-  let onChanges = onSubscriptionChanges.get(signal);
+  let onChanges = onSubscriptionChanges.get(signal)!;
 
   // If there is no set, create one and add it to the map
   if (!onChanges) onSubscriptionChanges.set(signal, (onChanges = new Set()));
@@ -249,7 +249,7 @@ export function onSubscriptionChange(
  * The optional second argument, `timing`, can be used to specify when the function should be called. The default is
  * undefined which executes the function immediately.
  */
-export function observe(fn: ReactiveSignalObserver, timing?: Timing): Unsubscribe {
+export function observe(fn: ReactiveSignalObserver, timing?: Timing, deferInitial?: boolean): Unsubscribe {
   let dirty = true;
   let unsubscribes = new Set<Unsubscribe>();
 
@@ -286,7 +286,7 @@ export function observe(fn: ReactiveSignalObserver, timing?: Timing): Unsubscrib
   };
 
   // Call immediately (or on the next timing)
-  if (timing) timing(() => onChange());
+  if (deferInitial && timing) timing(() => onChange());
   else onChange();
 
   // Return a function that unsubscribes from all the signals that are called when the effect is run
@@ -302,7 +302,11 @@ export function observe(fn: ReactiveSignalObserver, timing?: Timing): Unsubscrib
  * undefined which executes the function immediately after any change to any signal it relies on. This can
  * prevent unnecessary updates if the function is expensive to run.
  */
-export function computedSignal<T>(fn: ReactiveSignalUpdater<T>, when?: Timing): ComputedSignal<T> {
+export function computedSignal<T>(
+  fn: ReactiveSignalUpdater<T>,
+  when?: Timing,
+  deferInitial?: boolean
+): ComputedSignal<T> {
   // Create the signal
   const signal = reactiveSignal<T>(undefined as T);
 
@@ -314,7 +318,7 @@ export function computedSignal<T>(fn: ReactiveSignalUpdater<T>, when?: Timing): 
   onSubscriptionChange(signal, hasSubscribers => {
     // If there are subscribers, start observing the function
     if (hasSubscribers) {
-      if (!unsubscribe) unsubscribe = observe(() => signal(fn), when);
+      if (!unsubscribe) unsubscribe = observe(() => signal(fn), when, deferInitial);
     } else if (unsubscribe) {
       // If there are no subscribers, stop observing the function
       unsubscribe();
