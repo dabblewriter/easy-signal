@@ -22,6 +22,7 @@ export const Timing = {
 // The context for the current run and its unsubscribes
 type Context = { prior: Context | null; subscriber: ReactiveSignalSubscriber<any>; unsubscribes: Set<Unsubscribe> };
 let context: Context | null = null;
+let getHasSubscribers = false;
 
 // A map to keep track of listeners to subscription changes
 const onSubscriptionChanges = new WeakMap<ReactiveSignal<any>, Set<SubscriptionChange>>();
@@ -101,6 +102,8 @@ export function reactiveSignal<T>(value: T, options?: SignalOptions<T>): Reactiv
   const signal = ((newValue?: T | ReactiveSignalUpdater<T>, set?: boolean) => {
     // If no new value is provided, subscribe the current run to this signal and return the current value
     if (!set && newValue === undefined) {
+      if (getHasSubscribers) return subscribers.size > 0;
+
       // If there is a context (an observer is running), add the observer's subscriber to the signal
       if (context) {
         const { subscriber: run, unsubscribes } = context;
@@ -224,9 +227,15 @@ export function onSubscriptionChange(
   // Add the onChange function to the set
   onChanges.add(onChange);
 
+  // Pretty little hack to get the current value of hasSubscribers
+  getHasSubscribers = true;
+  const hasSubscribers = signal();
+  getHasSubscribers = false;
+  onChange(hasSubscribers);
+
   // Return a function that removes the onChange function from the set
   return () => {
-    onChanges!.delete(onChange);
+    onChanges.delete(onChange);
   };
 }
 
