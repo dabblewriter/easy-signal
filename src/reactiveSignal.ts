@@ -48,7 +48,7 @@ export interface ReactiveSignal<T> extends ComputedSignal<T> {
  */
 export interface ComputedSignal<T> {
   (): T;
-  subscribe: (subscriber: ReactiveSignalSubscriber<T>, timing?: Timing | null) => Unsubscribe;
+  subscribe: (subscriber: ReactiveSignalSubscriber<T>, timing?: Timing | null, deferInitial?: boolean) => Unsubscribe;
 }
 
 /**
@@ -169,21 +169,24 @@ export function reactiveSignal<T>(value: T, options?: SignalOptions<T>): Reactiv
  */
 export function subscribe<T>(
   signal: ReactiveSignal<T>,
-  subscriber: ReactiveSignalSubscriber<T>,
-  timing: Timing | null = Timing.Tick
+  changeHandler: ReactiveSignalSubscriber<T>,
+  timing: Timing | null = Timing.Tick,
+  deferInitial = false
 ): Unsubscribe {
+  let subscriber: ReactiveSignalSubscriber<T>;
   if (timing) {
     let queued = false;
-    const subFn = subscriber;
     subscriber = () => {
       if (!queued) {
         queued = true;
         timing(() => {
           queued = false;
-          subFn(signal());
+          changeHandler(signal());
         });
       }
     };
+  } else {
+    subscriber = changeHandler;
   }
 
   // Set the current context so we can get the unsubscribe
@@ -198,8 +201,8 @@ export function subscribe<T>(
   // Clear the current context
   context = context.prior;
 
-  // Call the subscriber with the current value
-  subscriber(value);
+  // Call the changeHandler with the current value immediately, regardless of timing, unless deferred
+  deferInitial ? subscriber(value) : changeHandler(value);
 
   // Return the unsubscribe function
   return unsubscribe;
