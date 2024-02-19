@@ -21,11 +21,19 @@ export const Timing = {
 
 // The context for the current run and its unsubscribes
 type Context = { prior: Context | null; subscriber: ReactiveSignalSubscriber<any>; unsubscribes: Set<Unsubscribe> };
-let context: Context | null = null;
-let getHasSubscribers = false;
-
-// A map to keep track of listeners to subscription changes
-const onSubscriptionChanges = new WeakMap<ReactiveSignal<any>, Set<SubscriptionChange>>();
+// Ensure 2 versions of the signal library can work together
+const symbol = Symbol.for('reactiveSignal');
+const root =
+  globalThis[symbol] ||
+  (globalThis[symbol] = {
+    context: null,
+    onSubscriptionChanges: new WeakMap(),
+    getHasSubscribers: false,
+  } as {
+    context: Context | null;
+    onSubscriptionChanges: WeakMap<ReactiveSignal<any>, Set<SubscriptionChange>>;
+    getHasSubscribers: boolean;
+  });
 
 /**
  * A Signal is a single getter/setter function that holds a value and notifies subscribers when the value changes
@@ -102,11 +110,11 @@ export function reactiveSignal<T>(value: T, options?: SignalOptions<T>): Reactiv
   const signal = ((newValue?: T | ReactiveSignalUpdater<T>, set?: boolean) => {
     // If no new value is provided, subscribe the current run to this signal and return the current value
     if (!set && newValue === undefined) {
-      if (getHasSubscribers) return subscribers.size > 0;
+      if (root.getHasSubscribers) return subscribers.size > 0;
 
       // If there is a context (an observer is running), add the observer's subscriber to the signal
-      if (context) {
-        const { subscriber: run, unsubscribes } = context;
+      if (root.context) {
+        const { subscriber: run, unsubscribes } = root.context;
         let unsubscribe = subscribers.get(run);
 
         // If the run is not already subscribed, subscribe it
@@ -117,7 +125,7 @@ export function reactiveSignal<T>(value: T, options?: SignalOptions<T>): Reactiv
 
             // If there are no more subscribers, notify the subscription changes
             if (subscribers.size === 0) {
-              const onChanges = onSubscriptionChanges.get(signal);
+              const onChanges = root.onSubscriptionChanges.get(signal);
               if (onChanges) onChanges.forEach(onChange => onChange(false));
             }
           };
@@ -127,7 +135,7 @@ export function reactiveSignal<T>(value: T, options?: SignalOptions<T>): Reactiv
 
           // If this changed the number of subscribers from 0 to 1, notify any subscription change subscribers
           if (subscribers.size === 1) {
-            const onChanges = onSubscriptionChanges.get(signal);
+            const onChanges = root.onSubscriptionChanges.get(signal);
             if (onChanges) onChanges.forEach(onChange => onChange(true));
           }
         }
@@ -193,16 +201,16 @@ export function subscribe<T>(
   }
 
   // Set the current context so we can get the unsubscribe
-  context = { prior: context, subscriber, unsubscribes: new Set() };
+  root.context = { prior: root.context, subscriber, unsubscribes: new Set() };
 
   // Get the current value of the signal
   const value = signal();
 
   // Get the unsubscribe function for the subscriber
-  const unsubscribe = context.unsubscribes.values().next().value;
+  const unsubscribe = root.context.unsubscribes.values().next().value;
 
   // Clear the current context
-  context = context.prior;
+  root.context = root.context.prior;
 
   // Call the changeHandler with the current value immediately, regardless of timing, unless deferred
   deferInitial ? subscriber(value) : changeHandler(value);
@@ -219,18 +227,18 @@ export function onSubscriptionChange(
   onChange: (hasSubscribers: boolean) => void
 ): Unsubscribe {
   // Get the set of onChange functions for the signal
-  let onChanges = onSubscriptionChanges.get(signal)!;
+  let onChanges = root.onSubscriptionChanges.get(signal)!;
 
   // If there is no set, create one and add it to the map
-  if (!onChanges) onSubscriptionChanges.set(signal, (onChanges = new Set()));
+  if (!onChanges) root.onSubscriptionChanges.set(signal, (onChanges = new Set()));
 
   // Add the onChange function to the set
   onChanges.add(onChange);
 
   // Pretty little hack to get the current value of hasSubscribers
-  getHasSubscribers = true;
+  root.getHasSubscribers = true;
   const hasSubscribers = signal();
-  getHasSubscribers = false;
+  root.getHasSubscribers = false;
   onChange(hasSubscribers);
 
   // Return a function that removes the onChange function from the set
@@ -267,22 +275,22 @@ export function observe(fn: ReactiveSignalObserver, timing?: Timing, deferInitia
     dirty = false;
 
     // Set the context for the effect
-    context = { prior: context, subscriber, unsubscribes: new Set() };
+    root.context = { prior: root.context, subscriber, unsubscribes: new Set() };
 
     // Run the effect collecting all the unsubscribes from the signals that are called when it is run
     fn();
 
     // Filter out unchanged unsubscribes, leaving only those which no longer apply
-    context.unsubscribes.forEach(u => unsubscribes.delete(u));
+    root.context.unsubscribes.forEach(u => unsubscribes.delete(u));
 
     // Unsubscribe from all the signals that are no longer needed
     unsubscribes.forEach(u => u());
 
     // Set the new unsubscribes
-    unsubscribes = context.unsubscribes;
+    unsubscribes = root.context.unsubscribes;
 
     // Clear the context
-    context = context.prior;
+    root.context = root.context.prior;
   };
 
   // Call immediately (or on the next timing)
