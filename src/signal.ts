@@ -1,14 +1,16 @@
-type Args<T> = T extends (...args: infer A) => any ? A : never;
-export type EventSignalSubscriber = (...args: any[]) => any;
-export type ErrorSubscriber = (error: Error) => any;
-export type Unsubscriber = () => void;
+import type { Unsubscriber } from './types';
 
-export type OnSignal<T extends EventSignalSubscriber = EventSignalSubscriber> = {
+type Args<T> = T extends (...args: infer A) => any ? A : never;
+export type SignalSubscriber = (...args: any[]) => any;
+export type ErrorSubscriber = (error: Error) => any;
+export type { Unsubscriber };
+
+export type OnSignal<T extends SignalSubscriber = SignalSubscriber> = {
   (subscriber: T): Unsubscriber;
   (errorListener: ErrorSubscriber, what: typeof ForErrors): Unsubscriber;
 };
 
-export type EventSignal<T extends EventSignalSubscriber = EventSignalSubscriber> = OnSignal<T> & {
+export type Signal<T extends SignalSubscriber = SignalSubscriber> = OnSignal<T> & {
   (...args: Args<T>): Promise<void>;
   (data: Error): Promise<void>;
   (data: typeof ClearSignal): void;
@@ -36,9 +38,9 @@ export const ForErrors = Symbol();
  * onLoad('data'); // logs 'loaded data'
  * onLoad(new Error('error')); // logs 'error Error: error'
  */
-export function eventSignal<T extends EventSignalSubscriber = EventSignalSubscriber>(): EventSignal<T> {
-  const subscribers = new Set<EventSignalSubscriber>();
-  const errorListeners = new Set<EventSignalSubscriber>();
+export function signal<T extends SignalSubscriber = SignalSubscriber>(): Signal<T> {
+  const subscribers = new Set<SignalSubscriber>();
+  const errorListeners = new Set<SignalSubscriber>();
 
   function onSignal(subscriber: T | ErrorSubscriber, what?: typeof ForErrors): Unsubscriber {
     const listeners = what === ForErrors ? errorListeners : subscribers;
@@ -53,7 +55,7 @@ export function eventSignal<T extends EventSignalSubscriber = EventSignalSubscri
   function signal(data: typeof ClearSignal): void;
   function signal(data: typeof GetSubscribe): OnSignal<T>;
   function signal(subscriber: T): Unsubscriber;
-  function signal(errorListener: EventSignalSubscriber, what: typeof ForErrors): Unsubscriber;
+  function signal(errorListener: SignalSubscriber, what: typeof ForErrors): Unsubscriber;
   function signal(...args: any[]): Unsubscriber | OnSignal<T> | void | Promise<void> {
     const arg = args[0];
     if (typeof arg === 'function') {

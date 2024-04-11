@@ -1,7 +1,7 @@
 {
   "name": "easy-signal",
   "version": "3.2.7",
-  "description": "A tiny (25 LOC), simple utility for alerting subscribers when an event happens, allowing for error handling and clearing.",
+  "description": "A package with 2 types of signals, an small and simple event signal, and a reactive value-based signal called atoms.",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
@@ -17,7 +17,9 @@
     "events",
     "typescript",
     "subscriber",
-    "dispatcher"
+    "dispatcher",
+    "reactive",
+    "atom"
   ],
   "author": "Jacob Wright",
   "license": "MIT",
@@ -26,6 +28,6 @@
   },
   "homepage": "https://github.com/dabblewriter/easy-signal#readme",
   "devDependencies": {
-    "typescript": "^4.8.2"
+    "typescript": "^5.4.5"
   }
 }

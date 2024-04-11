@@ -1,8 +1,8 @@
 # Easy Signal
 
-Two simple interfaces for creating two types of signals. The first (and original signal in this module) is a defined
-event that can be triggered and listened to with a single function. The second is a defined data store that allows you
-to react to changes to that data (popularized by solid-js). These two are `EventSignal` and `ReactiveSignal`.
+Two interfaces for creating two types of signals. The first (and original signal in this module) is a function that
+defines an event and can be triggered and listened to with the single function. The second is a reactive data store that
+allows to react to changes (popularized by solid-js). These two are `Signal` and `Atom`.
 
 Full type safety with TypeScript with both use-cases.
 
@@ -12,24 +12,24 @@ Full type safety with TypeScript with both use-cases.
 npm install easy-signal
 ```
 
-## EventSignal Usage
+## Signal Usage
 
-An EventSignal is a function that represents a single event. The function can be used to subscribe to be notified of
+A Signal is a function that represents a single event. The function can be used to subscribe to be notified of
 the events as well as to trigger them.
 
-EventSignals offer similar functionality as the browser's `eventDispatcher` API, but rather than a general API for any
+Signals offer similar functionality as the browser's `eventDispatcher` API, but rather than a general API for any
 event, each event would use its own signal. This allows each signal to have a specific function signature as opposed to
 the browser's generic `event` object. This is a great system in TypeScript being able to see the exact data each event
 produces.
 
-### EventSignal Basic Usage
+### Signal Basic Usage
 
 ```ts
 // file seconds.ts
-import { eventSignal } from 'easy-signal';
+import { signal } from 'easy-signal';
 
 // Create the signal and export it for use. Optionally provide the subscriber signature
-export const onSecond = eventSignal<number>();
+export const onSecond = signal<number>();
 
 // Passing a non-function value will dispatch the event
 setInterval(() => {
@@ -51,9 +51,9 @@ Errors may also be listened to from the signal by passing `ForErrors` as the sec
 and errors may be dispatched by passing an Error object to the signal method.
 
 ```ts
-import { eventSignal, ForErrors } from 'easy-signal';
+import { signal, ForErrors } from 'easy-signal';
 
-const dataStream = eventSignal();
+const dataStream = signal();
 
 dataStream(data => console.log('data is:' data));
 dataStream(error => console.log('Error is:' error), ForErrors);
@@ -65,10 +65,10 @@ stream.on('error', err => dataStream(err));
 To get a subscriber-only method for external use, pass in the `GetOnSignal` constant.
 
 ```ts
-import { eventSignal, GetOnSignal } from 'easy-signal';
+import { signal, GetOnSignal } from 'easy-signal';
 
 function getMyAPI() {
-  const doSomething = eventSignal();
+  const doSomething = signal();
 
   // doSomething() will trigger subscribers that were added in onSomething(...). This protects the signal from being
   // triggered/dispatched outside of `getMyAPI`. Sometimes you may want more control to prevent just anyone from
@@ -90,32 +90,30 @@ const onSomething = signal();
 onSomething(ClearSignal); // clears signal
 ```
 
-## ReactiveSignal Usage
+## Atom Usage
 
-A ReactiveSignal is a function that represents a single piece of data. The function can be used to get the data, set the
-data, and update the data with an updater function. To subscribe to changes use the separate `subscribe` function. The
-ReactiveSignal allows for Observers to be created, which are functions that will be rerun whenever any ReactiveSignals
-they access are updated, and ComputedSignals which are read-only signals whose value is derived from other signals and
-which will be updated whenever they are.
+An Atom is a function that represents a single piece of data. The function can be used to get the data and set the
+data. A `subscribe` function allows reacting to changes on the data in an atom. An `observe` function allows for a
+function to be rerun whenever any atoms it depends on are changed. And a `derived` function allows a readonly atom to
+be created which depends on, or is derived from, other atoms.
 
-### ReactiveSignal Basic Usage
+### Atom Basic Usage
 
-Here we will use an example similar to the EventSignal, but unlike the EventSignal, the current seconds since epoch will
-be stored and can be accessed any time, whereas the EventSignal only fires an event with the data provided. This
+Here we will use an example similar to the Signal, but unlike the Signal, the current seconds since epoch will
+be stored and can be accessed any time, whereas the Signal only fires an event with the data provided. This
 particular example isn't very compelling.
 
 ```ts
 // file seconds.ts
-import { reactiveSignal } from 'easy-signal';
+import { atom } from 'easy-signal';
 
 // Create the signal and export it for use. Optionally provide the subscriber signature
-export const onSecond = reactiveSignal(0);
+export const onSecond = atom(0);
 
 // Passing a non-function value will dispatch the event
 setInterval(() => {
   const currentSecond = Math.floor(Date.now() / 1000);
   onSecond(currentSecond);
-  // or onSecond(currentValue => newValue) to update
 });
 ```
 
@@ -131,36 +129,39 @@ const unsubscribe = onSecond.subscribe(seconds => {
 });
 ```
 
-### Observer Basic Usage
+### `observe` Basic Usage
 
-To take action whenever data changes, you can observe or more signals by accessing them in a function call. You can also
-prevent that function from being called too often when data changes by using the Timings. Below, we update the content
-of the DOM whenever the user or billing data is updated, but we only do it after an animation frame to prevent the DOM
-updates from being too frequent. Providing no Timing will call the function immediately after any data is changed.
+To take action whenever data changes, you can observe one or more signals by accessing them in a function call. Below,
+we update the content of the DOM whenever the user or billing data is updated, but we only do it after an animation
+frame to prevent the DOM updates from being too frequent.
 
 Because `user()` and `billing()` are called the first time the observe function is run, it automatically subscribes to
 know when they are changed so that the function may be rerun.
 
 ```ts
-import { reactiveSignal, observe, Timing } from 'easy-signal';
+import { atom, observe, onAnimationFrame } from 'easy-signal';
 
-const user = reactiveSignal(userData);
-const billing = reactiveSignal(billingData);
+const user = atom(userData);
+const billing = atom(billingData);
+
+const updateDom = onAnimationFrame((name, plan) => {
+  document.body.innerText = `${user().name} has the plan ${billing().plan}`;
+});
 
 const unobserve = observe(() => {
-  document.body.innerText = `${user().name} has the plan ${billing().plan}`;
-}, Timing.AnimationFrame);
+  updateDom(user().name, billing().plan);
+});
 ```
 
-### ComputedSignal Basic Usage
+### `derived` Basic Usage
 
 Create read-only signals whose value is derived from other signals and which will be updated whenever they are.
 
 ```ts
-import { computedSignal } from 'easy-signal';
+import { derived } from 'easy-signal';
 import { user, billing } from 'my-other-signals';
 
-const delinquent = computedSignal(() => {
+const delinquent = derived(() => {
   if (user().subscribed) {
     return billing().status === 'delinquent';
   }
