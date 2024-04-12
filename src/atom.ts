@@ -1,5 +1,5 @@
 import type { Subscriber, Unsubscriber } from './types';
-export type Invalidator<T> = (value?: T) => void;
+export type Invalidator = () => void;
 export type StartStopNotifier<T> = (set: Atom<T>) => Unsubscriber | void;
 export type { Subscriber, Unsubscriber };
 
@@ -12,7 +12,7 @@ export interface Derived<T> {
   /**
    * Subscribe to changes with a callback. Returns an unsubscribe function.
    */
-  subscribe(callback: Subscriber<T>, invalidate?: Invalidator<T>): Unsubscriber;
+  subscribe(callback: Subscriber<T>): Unsubscriber;
 }
 
 export interface Atom<T> extends Derived<T> {
@@ -28,19 +28,24 @@ export interface Atom<T> extends Derived<T> {
 }
 
 type Dependencies = Set<Derived<any>>;
+type Context = {
+  subscriber: Subscriber<any>;
+  invalidate: Invalidator;
+  unsubscribes: Set<Unsubscriber>;
+};
+type Root = {
+  context: Context;
+  subscriberQueue: Map<Subscriber<any>, any>;
+};
 
 const noop = () => {};
 // Ensure 2 versions of the signal library can work together
 const symbol = Symbol.for('reactiveAtoms');
-const root =
+const root: Root =
   globalThis[symbol] ||
   (globalThis[symbol] = {
     context: null,
     subscriberQueue: new Map(),
-    trackingDependencies: null,
-  } as {
-    subscriberQueue: Map<Subscriber<any>, any>;
-    trackingDependencies: Dependencies;
   });
 
 /**
@@ -58,12 +63,18 @@ export function readable<T>(value?: T, start?: StartStopNotifier<T>): Derived<T>
 export function atom<T>(value: T, start: StartStopNotifier<T> = noop): Atom<T> {
   let stop: Unsubscriber;
   let started = false;
-  const subscribers = new Map<Subscriber<T>, Invalidator<T>>();
+  const subscribers = new Map<Subscriber<T>, [Unsubscriber, Invalidator?]>();
 
   function atom(): T;
   function atom(newValue: T): void;
   function atom(newValue?: T): T | void {
     if (newValue === undefined) {
+      if (root.context) {
+        const { subscriber, unsubscribes, invalidate } = root.context;
+        const unsubscribe = subscribe(subscriber, invalidate);
+        unsubscribes.add(unsubscribe);
+      }
+
       if (!subscribers.size && !started) {
         started = true;
         try {
@@ -72,9 +83,7 @@ export function atom<T>(value: T, start: StartStopNotifier<T> = noop): Atom<T> {
           started = false;
         }
       }
-      if (root.trackingDependencies) {
-        root.trackingDependencies.add(atom as Derived<any>);
-      }
+
       return value;
     } else if (value !== newValue) {
       value = newValue;
@@ -82,9 +91,9 @@ export function atom<T>(value: T, start: StartStopNotifier<T> = noop): Atom<T> {
         // atom is ready
         const runQueue = !root.subscriberQueue.size;
 
-        subscribers.forEach((invalidate, subscriber) => {
+        subscribers.forEach(([, invalidate], subscriber) => {
           if (!root.subscriberQueue.has(subscriber)) {
-            invalidate();
+            if (invalidate) invalidate();
           } else {
             // move to the end of the queue
             root.subscriberQueue.delete(subscriber);
@@ -104,21 +113,32 @@ export function atom<T>(value: T, start: StartStopNotifier<T> = noop): Atom<T> {
     }
   }
 
-  function subscribe(subscriber: Subscriber<T>, invalidate: Invalidator<T> = noop): Unsubscriber {
-    subscribers.set(subscriber, invalidate);
-    if (subscribers.size === 1) {
-      stop = start(atom as Atom<T>) || noop;
-    }
-    invalidate();
-    subscriber(value);
+  function subscribe(subscriber: Subscriber<T>, invalidate?: Invalidator): Unsubscriber {
+    let unsubscribe = subscribers.get(subscriber)?.[0];
 
-    return () => {
+    // If already subscribed, return the existing unsubscribe function
+    if (unsubscribe) return unsubscribe;
+
+    unsubscribe = () => {
       subscribers.delete(subscriber);
       if (subscribers.size === 0) {
         stop();
         stop = null;
       }
     };
+
+    subscribers.set(subscriber, [unsubscribe, invalidate]);
+
+    if (subscribers.size === 1) {
+      stop = start(atom as Atom<T>) || noop;
+    }
+
+    // If invalidate is provided, this comes from a derived atom and we should not call the subscriber immediately
+    if (!invalidate) {
+      subscriber(value);
+    }
+
+    return unsubscribe;
   }
 
   return Object.assign(atom, { subscribe, set: (value: T) => atom(value) });
@@ -134,55 +154,42 @@ export function observe<T>(fn: () => T): Unsubscriber {
 /**
  * Create a `Readable` atom that derives its value from other atoms and updates when those atoms change.
  */
-export function derived<T>(fn: () => T, initialValue?: T): Derived<T> {
-  const dependencies = new Map<Derived<any>, Unsubscriber>();
+export function derived<T>(fn: (priorValue: T) => T, value?: T): Derived<T> {
+  let unsubscribes = new Set<Unsubscriber>();
 
-  return readable(initialValue, set => {
-    let inited = false;
+  return readable(value, set => {
     let pending = 0;
-    const subscriber = () => --pending === 0 && inited && sync();
+    const subscriber = () => --pending === 0 && sync();
     const invalidate = () => pending++;
 
     const sync = () => {
-      const [oldDeps, newDeps] = trackDependencies(new Set(dependencies.keys()), () => {
-        const result = fn();
-        set(result as T);
-      });
+      const prior = root.context;
 
-      oldDeps.forEach(dep => {
-        dependencies.get(dep)();
-        dependencies.delete(dep);
-      });
+      // Set the context for the derived function
+      root.context = { subscriber, invalidate, unsubscribes: new Set() };
 
-      inited = false;
-      newDeps.forEach(atom => {
-        const unsubscribe = atom.subscribe(subscriber, invalidate);
-        dependencies.set(atom, unsubscribe);
-      });
-      inited = true;
+      try {
+        // Run the effect collecting all the unsubscribes from the signals that are called when it is run
+        value = fn(value);
+      } finally {
+
+        // Filter out unchanged unsubscribes, leaving only those which no longer apply
+        root.context.unsubscribes.forEach(u => unsubscribes.delete(u));
+
+        // Unsubscribe from all the signals that are no longer needed
+        unsubscribes.forEach(u => u());
+
+        // Set the new unsubscribes
+        unsubscribes = root.context.unsubscribes;
+
+        // Clear the context
+        root.context = prior;
+      }
+      set(value);
     };
 
     sync();
 
-    return function stop() {
-      dependencies.forEach(unsub => unsub());
-      dependencies.clear();
-    };
+    return () => unsubscribes.forEach(u => u());
   });
-}
-
-function trackDependencies(existing: Dependencies, fn: () => void): [Dependencies, Dependencies] {
-  const priorDependencies = root.trackingDependencies;
-  const newDeps = (root.trackingDependencies = new Set<Derived<any>>());
-
-  try {
-    fn();
-  } finally {
-    root.trackingDependencies = priorDependencies;
-
-    const oldDeps = new Set(existing);
-    newDeps.forEach(oldDeps.delete, oldDeps);
-    existing.forEach(newDeps.delete, newDeps);
-    return [oldDeps, newDeps];
-  }
 }
