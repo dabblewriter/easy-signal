@@ -2,7 +2,7 @@
 
 Two interfaces for creating two types of signals. The first (and original signal in this module) is a function that
 defines an event and can be triggered and listened to with the single function. The second is a reactive data store that
-allows to react to changes (popularized by solid-js). These two are `Signal` and `Atom`.
+allows to react to changes (popularized by solid-js). These two are `Signal` and `Readable`/`Writable`.
 
 Full type safety with TypeScript with both use-cases.
 
@@ -90,14 +90,15 @@ const onSomething = signal();
 onSomething(ClearSignal); // clears signal
 ```
 
-## Atom Usage
+## Store Usage
 
-An Atom is a function that represents a single piece of data. The function can be used to get the data and set the
-data. A `subscribe` function allows reacting to changes on the data in an atom. An `observe` function allows for a
-function to be rerun whenever any atoms it depends on are changed. And a `derived` function allows a readonly atom to
-be created which depends on, or is derived from, other atoms.
+A store is an object that represents a single piece of data. The store's methods can be used to `get`, `set`, and
+`update` the data and `subscribe` to changes on the data. An `observe` function allows for a given function to be rerun
+whenever any stores it depends on are changed. And a `derived` function allows a readonly store to be created which
+depends on, or is derived from, other stores. Both `observe` and `derived` automatically track dependencies within the
+scope of their function.
 
-### Atom Basic Usage
+### Store Basic Usage
 
 Here we will use an example similar to the Signal, but unlike the Signal, the current seconds since epoch will
 be stored and can be accessed any time, whereas the Signal only fires an event with the data provided. This
@@ -105,23 +106,23 @@ particular example isn't very compelling.
 
 ```ts
 // file seconds.ts
-import { atom } from 'easy-signal';
+import { writable } from 'easy-signal';
 
 // Create the signal and export it for use. Optionally provide the subscriber signature
-export const onSecond = atom(0);
+export const onSecond = writable(0);
 
 // Passing a non-function value will dispatch the event
 setInterval(() => {
   const currentSecond = Math.floor(Date.now() / 1000);
-  onSecond(currentSecond);
+  onSecond.set(currentSecond);
 });
 ```
 
 ```ts
 import { onSecond } from './seconds.ts';
 
-// Get the value of onSecond() at any time
-console.log(onSecond(), 'since epoc');
+// Get the value of onSecond.get() at any time
+console.log(onSecond.get(), 'since epoc');
 
 // Typescript knows that seconds is a number because of the concrete type definition in seconds.ts
 const unsubscribe = onSecond.subscribe(seconds => {
@@ -135,21 +136,28 @@ To take action whenever data changes, you can observe one or more signals by acc
 we update the content of the DOM whenever the user or billing data is updated, but we only do it after an animation
 frame to prevent the DOM updates from being too frequent.
 
-Because `user()` and `billing()` are called the first time the observe function is run, it automatically subscribes to
-know when they are changed so that the function may be rerun.
+Because `user.get()` and `billing.get()` are called the first time the observe function is run, it automatically
+subscribes to know when they are changed so that the function may be rerun.
+
+Note that easy-signal provides 3 simple debounce functions to make it easy to have effects happen less often while still
+allowing the stores to always be accurate:
+- `onAnimationFrame`
+- `onTick`
+- `onTimeout`
 
 ```ts
-import { atom, observe, onAnimationFrame } from 'easy-signal';
+import { writable, observe, onAnimationFrame } from 'easy-signal';
 
-const user = atom(userData);
-const billing = atom(billingData);
+const user = writable(userData);
+const billing = writable(billingData);
 
 const updateDom = onAnimationFrame((name, plan) => {
-  document.body.innerText = `${user().name} has the plan ${billing().plan}`;
+  // will be called with only the most recent values if updateDom was called multiple times between frames
+  document.body.innerText = `${name} has the plan ${plan}`;
 });
 
 const unobserve = observe(() => {
-  updateDom(user().name, billing().plan);
+  updateDom(user.get().name, billing.get().plan);
 });
 ```
 
@@ -162,8 +170,8 @@ import { derived } from 'easy-signal';
 import { user, billing } from 'my-other-signals';
 
 const delinquent = derived(() => {
-  if (user().subscribed) {
-    return billing().status === 'delinquent';
+  if (user.get().subscribed) {
+    return billing.get().status === 'delinquent';
   }
   return false;
 });
@@ -172,3 +180,5 @@ delinquent.subscribe(delinquent => {
   console.log(`The user is${delinquent ? '' : ' not'} delinquent`);
 });
 ```
+
+`batch(fn: () => void)` allows updating multiple stores and only triggering those updates once at the end.
