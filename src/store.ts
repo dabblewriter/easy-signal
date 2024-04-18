@@ -197,8 +197,45 @@ export function derived<T>(fn: (priorValue: T) => T, value?: T): Readable<T> {
   });
 }
 
+/**
+ * Allows setting multiple stores at once and only notifying subscribers once after the batch function is run.
+ */
 export function batch(fn: () => void) {
   queue(fn, true);
+}
+
+/**
+ * Provides a promise that resolves when the store is no longer `null` or `undefined` and continues to return the latest
+ * value when it changes (i.e. it does not resolve once and remain at that value).
+ */
+export function whenReadable<T>(store: Readable<T>): Promise<T> {
+  return {
+    then: ((resolve: (value: T) => void) => {
+      const value = store.get();
+      if (value != null) return resolve(value);
+      const unsubscribe = store.subscribe(value => {
+        if (value == null) return;
+        unsubscribe();
+        resolve(value);
+      });
+    }),
+    catch(){},
+    finally(){},
+  } as Promise<T>;
+}
+
+/**
+ * Provides a promise that resolves after the store changes and returns the new value.
+ */
+export function afterChange<T>(store: Readable<T>): Promise<T> {
+  return new Promise(resolve => {
+    let init = true;
+    const unsubscribe = store.subscribe(value => {
+      if (init) return init = false;
+      unsubscribe();
+      resolve(value);
+    });
+  });
 }
 
 function queue(fn: () => void, batch?: boolean) {
