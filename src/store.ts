@@ -209,12 +209,21 @@ export function batch(fn: () => void) {
  * value when it changes (i.e. it does not resolve once and remain at that value).
  */
 export function whenReadable<T>(store: Readable<T>): Promise<T> {
+  return whenMatches(store, v => v != null) as Promise<T>;
+}
+
+/**
+ * Provides a promise that resolves when the store's value meets the provided condition and will continue to return the
+ * latest value as long as it meets the condition. It will not resolve once and remain at that value like a regular
+ * promise.
+ */
+export function whenMatches<T>(store: Readable<T>, matches: (value: T) => boolean): Promise<T> {
   return {
-    then: ((resolve: (value: T) => void) => {
+    then: ((resolve: (value: T) => any) => {
       const value = store.get();
-      if (value != null) return resolve(value);
+      if (matches(value)) return resolve(value);
       const unsubscribe = store.subscribe(value => {
-        if (value == null) return;
+        if (!matches(value)) return;
         unsubscribe();
         resolve(value);
       });
