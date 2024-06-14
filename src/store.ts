@@ -142,7 +142,12 @@ export function writable<T>(value: T, start: StartStopNotifier<T> = noop): Writa
  * Observe stores and derived values by synchronizing one or more readable stores within an aggregation function.
  */
 export function observe<T>(fn: () => T): Unsubscriber {
-  return derived(fn).subscribe(noop);
+  const store = derived(fn);
+  const unsubscribe = store.subscribe(noop);
+  if (store.get() instanceof Promise) {
+    throw new Error('observe() should not be used with async methods (it won’t update when dependant stores change).');
+  }
+  return unsubscribe;
 }
 
 /**
