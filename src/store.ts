@@ -159,9 +159,9 @@ export function derived<T>(fn: (priorValue: T) => T, value?: T): Readable<T> {
     const invalidate = () => {
       pending++;
       // Ensure derived stores that have multiple overlapping dependencies only trigger once after others
-      forExistsInBoth(subscribers, root.subscriberQueue, subscriber => {
+      forExistsInBoth(subscribers, new Map(root.subscriberQueue), subscriber => {
         // move to the end of the queue
-        const value = root.subscriberQueue.has(subscriber);
+        const value = root.subscriberQueue.get(subscriber);
         root.subscriberQueue.delete(subscriber);
         root.subscriberQueue.set(subscriber, value);
       });
