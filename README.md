@@ -141,6 +141,7 @@ subscribes to know when they are changed so that the function may be rerun.
 
 Note that easy-signal provides 3 simple debounce functions to make it easy to have effects happen less often while still
 allowing the stores to always be accurate:
+
 - `onAnimationFrame`
 - `onTick`
 - `onTimeout`

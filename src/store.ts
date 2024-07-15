@@ -143,11 +143,7 @@ export function writable<T>(value: T, start: StartStopNotifier<T> = noop): Writa
  */
 export function observe<T>(fn: () => T): Unsubscriber {
   const store = derived(fn);
-  const unsubscribe = store.subscribe(noop);
-  if (store.get() instanceof Promise) {
-    throw new Error('observe() should not be used with async methods (it won’t update when dependant stores change).');
-  }
-  return unsubscribe;
+  return store.subscribe(noop);
 }
 
 /**
@@ -180,6 +176,11 @@ export function derived<T>(fn: (priorValue: T) => T, value?: T): Readable<T> {
       try {
         // Run the effect collecting all the unsubscribes from the signals that are called when it is run
         value = fn(value);
+        if (value instanceof Promise) {
+          throw new Error(
+            'derived() should not be used with async methods (it won’t update when dependant stores change).'
+          );
+        }
       } finally {
         // Filter out unchanged unsubscribes, leaving only those which no longer apply
         root.context.unsubscribes.forEach(u => unsubscribes.delete(u));
@@ -224,7 +225,7 @@ export function whenReadable<T>(store: Readable<T>): Promise<T> {
  */
 export function whenMatches<T>(store: Readable<T>, matches: (value: T) => boolean): Promise<T> {
   return {
-    then: ((resolve: (value: T) => any) => {
+    then: (resolve: (value: T) => any) => {
       const value = store.get();
       if (matches(value)) return resolve(value);
       const unsubscribe = store.subscribe(value => {
@@ -232,9 +233,9 @@ export function whenMatches<T>(store: Readable<T>, matches: (value: T) => boolea
         unsubscribe();
         resolve(value);
       });
-    }),
-    catch(){},
-    finally(){},
+    },
+    catch() {},
+    finally() {},
   } as Promise<T>;
 }
 
@@ -245,7 +246,7 @@ export function afterChange<T>(store: Readable<T>): Promise<T> {
   return new Promise(resolve => {
     let init = true;
     const unsubscribe = store.subscribe(value => {
-      if (init) return init = false;
+      if (init) return (init = false);
       unsubscribe();
       resolve(value);
     });
@@ -272,7 +273,6 @@ function queue(fn: () => void, batch?: boolean) {
 }
 
 function forExistsInBoth<T>(a: Map<T, any>, b: Map<T, any>, fn: (value: T) => void) {
-  const smallest = a.size <= b.size ? a : b;
-  const other = a.size <= b.size ? b : a;
-  smallest.forEach((_, key) => other.has(key) && fn(key));
+  const [smaller, larger] = a.size <= b.size ? [a, b] : [b, a];
+  smaller.forEach((_, key) => larger.has(key) && fn(key));
 }

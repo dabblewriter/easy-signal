@@ -16,9 +16,9 @@ function debounce<T extends (...args: any[]) => void>(scheduler: Scheduler, fn: 
   }) as T;
 }
 
-const tick: Scheduler = (callback) => Promise.resolve().then(callback);
-const timeout: Scheduler = (callback) => setTimeout(callback);
-const frame: Scheduler = (callback) => requestAnimationFrame(callback);
+const tick: Scheduler = callback => Promise.resolve().then(callback);
+const timeout: Scheduler = callback => setTimeout(callback);
+const frame: Scheduler = callback => requestAnimationFrame(callback);
 
 /**
  * A function to debounce the execution of a function until the next microtask.
@@ -31,7 +31,7 @@ export function onTick<T extends (...args: any[]) => void>(fn: T): T {
  * A function to debounce the execution of a function until the next setTimeout(..., 0).
  */
 export function onTimeout<T extends (...args: any[]) => void>(fn: T, delay?: number): T {
-    return debounce(timeout, fn, delay);
+  return debounce(timeout, fn, delay);
 }
 
 /**
