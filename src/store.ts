@@ -68,6 +68,10 @@ export function writable<T>(value: T, start: StartStopNotifier<T> = noop): Writa
   const subscribers: Subscribers<T> = new Map();
   set[subscribersKey] = subscribers;
 
+  function hasValueOf(value: any): value is { valueOf(): any } {
+    return value && typeof value.valueOf === 'function';
+  }
+
   function get(): T {
     if (root.context) {
       const { subscriber, unsubscribes, invalidate } = root.context;
@@ -88,7 +92,9 @@ export function writable<T>(value: T, start: StartStopNotifier<T> = noop): Writa
   }
 
   function set(newValue: T): void {
-    if (value === newValue) return;
+    if (value === newValue || (hasValueOf(value) && hasValueOf(newValue) && value.valueOf() === newValue.valueOf())) {
+      return;
+    }
     value = newValue;
     if (stop) {
       // store is ready
