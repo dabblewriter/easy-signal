@@ -181,7 +181,7 @@ batch(() => {
 
 ### `whenReady` and `whenMatches`
 
-Await a store reaching a certain condition. All when/after helpers support `AbortSignal` for cancellation:
+Await a store reaching a certain condition:
 
 ```ts
 import { store, whenReady, whenMatches } from 'easy-signal';
@@ -193,16 +193,6 @@ const value = await whenReady(user);
 
 // Resolves when a custom condition is met
 const admin = await whenMatches(user, u => u?.role === 'admin');
-
-// With a timeout
-const controller = new AbortController();
-setTimeout(() => controller.abort(), 5000);
-
-try {
-  const value = await whenReady(user, { signal: controller.signal });
-} catch (e) {
-  console.log('Timed out waiting');
-}
 ```
 
 ### `afterChange`
@@ -216,16 +206,6 @@ const count = store(0);
 
 // Wait for the next change
 const newValue = await afterChange(count);
-
-// With a timeout
-const controller = new AbortController();
-setTimeout(() => controller.abort(), 5000);
-
-try {
-  const value = await afterChange(count, { signal: controller.signal });
-} catch (e) {
-  console.log('Timed out waiting for change');
-}
 ```
 
 ### `clearAllContext`

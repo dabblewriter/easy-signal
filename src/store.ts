@@ -241,63 +241,33 @@ export function batch(fn: () => void) {
 
 /**
  * Provides a promise that resolves when the store is no longer `null` or `undefined`.
- * Optionally accepts an AbortSignal to cancel the wait.
  */
-export function whenReady<T>(store: ReadonlyStore<T>, options?: { signal?: AbortSignal }): Promise<T> {
-  return whenMatches(store, v => v != null, options) as Promise<T>;
+export function whenReady<T>(store: ReadonlyStore<T>): Promise<T> {
+  return whenMatches(store, v => v != null) as Promise<T>;
 }
 
 /**
  * Provides a promise that resolves when the store's value meets the provided condition.
- * Optionally accepts an AbortSignal to cancel the wait.
  */
-export function whenMatches<T>(store: ReadonlyStore<T>, matches: (value: T) => boolean, options?: { signal?: AbortSignal }): Promise<T> {
-  return awaitStore(store, options, (value, resolve) => {
-    if (matches(value)) {
+export function whenMatches<T>(store: ReadonlyStore<T>, matches: (value: T) => boolean): Promise<T> {
+  return new Promise(resolve => {
+    const unsubscribe = store.subscribe(value => {
+      if (!matches(value)) return;
+      unsubscribe();
       resolve(value);
-      return true;
-    }
-    return false;
+    });
   });
 }
 
 /**
  * Provides a promise that resolves after the store changes and returns the new value.
- * Optionally accepts an AbortSignal to cancel the wait.
  */
-export function afterChange<T>(store: ReadonlyStore<T>, options?: { signal?: AbortSignal }): Promise<T> {
-  let init = true;
-  return awaitStore(store, options, (value, resolve) => {
-    if (init) {
-      init = false;
-      return false;
-    }
-    resolve(value);
-    return true;
-  });
-}
-
-function awaitStore<T>(
-  store: ReadonlyStore<T>,
-  options: { signal?: AbortSignal } | undefined,
-  check: (value: T, resolve: (value: T) => void) => boolean,
-): Promise<T> {
-  return new Promise((resolve, reject) => {
-    function onAbort() {
-      unsubscribe();
-      reject(options.signal.reason);
-    }
-
+export function afterChange<T>(store: ReadonlyStore<T>): Promise<T> {
+  return new Promise(resolve => {
     const unsubscribe = store.subscribe(value => {
-      if (!check(value, resolve)) return;
       unsubscribe();
-      options?.signal?.removeEventListener('abort', onAbort);
-    });
-
-    if (options?.signal) {
-      if (options.signal.aborted) onAbort();
-      else options.signal.addEventListener('abort', onAbort);
-    }
+      resolve(value);
+    }, false);
   });
 }
 
