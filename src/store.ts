@@ -12,8 +12,9 @@ export interface ReadonlyStore<T> {
 
   /**
    * Subscribe to changes with a callback. Returns an unsubscribe function.
+   * Pass `false` as the second argument to skip the immediate initial call.
    */
-  subscribe(callback: Subscriber<T>): Unsubscriber;
+  subscribe(callback: Subscriber<T>, noInit?: false): Unsubscriber;
 }
 
 export interface Store<T> extends ReadonlyStore<T> {
@@ -126,7 +127,7 @@ export function store<T>(value: T, start: StartStopNotifier<T> = noop): Store<T>
     set(fn(value));
   }
 
-  function subscribe(subscriber: Subscriber<T>, invalidate?: Invalidator): Unsubscriber {
+  function subscribe(subscriber: Subscriber<T>, invalidate?: Invalidator | false): Unsubscriber {
     let unsubscribe = subscribers.get(subscriber)?.[0];
 
     // If already subscribed, return the existing unsubscribe function
@@ -140,14 +141,14 @@ export function store<T>(value: T, start: StartStopNotifier<T> = noop): Store<T>
       }
     };
 
-    subscribers.set(subscriber, [unsubscribe, invalidate]);
+    subscribers.set(subscriber, [unsubscribe, invalidate || undefined]);
 
     if (subscribers.size === 1) {
       stop = start(set, update) || noop;
     }
 
-    // If invalidate is provided, this comes from a computed store and we should not call the subscriber immediately
-    if (!invalidate) {
+    // If invalidate is provided or false is passed, do not call the subscriber immediately
+    if (invalidate === undefined) {
       subscriber(value);
     }
 

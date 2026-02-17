@@ -93,10 +93,15 @@ import { seconds } from './seconds';
 // Read the value at any time
 console.log(seconds.state, 'since epoch');
 
-// Subscribe to changes
+// Subscribe to changes (calls immediately with the current value, then on every change)
 const unsubscribe = seconds.subscribe(value => {
   console.log(value, 'since epoch');
 });
+
+// Pass false to skip the initial call and only listen for future changes
+seconds.subscribe(value => {
+  console.log('changed to', value);
+}, false);
 ```
 
 ### `readonly` Stores
