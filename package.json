@@ -1,8 +1,15 @@
 {
   "name": "easy-signal",
   "version": "4.1.6",
-  "description": "A package with 2 types of signals, an small and simple event signal, and a reactive value-based signal called stores.",
+  "description": "Two types of signals: event signals for subscribing to and emitting events, and reactive store signals for tracking and reacting to state changes.",
   "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
   "scripts": {
     "build": "tsc",
     "watch": "tsc --watch",
@@ -13,13 +20,14 @@
     "url": "git+https://github.com/dabblewriter/easy-signal.git"
   },
   "keywords": [
-    "Signal",
+    "signal",
     "events",
     "typescript",
-    "subscriber",
-    "dispatcher",
     "reactive",
-    "atom"
+    "store",
+    "computed",
+    "watch",
+    "state"
   ],
   "author": "Jacob Wright",
   "license": "MIT",

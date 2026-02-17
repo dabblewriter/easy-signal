@@ -1,14 +1,14 @@
 import type { Subscriber, Unsubscriber } from './types';
-export type Invalidator = () => void;
-export type StartStopNotifier<T> = (set: Subscriber<T>, update: (fn: Updater<T>) => void) => Unsubscriber | void;
+type Invalidator = () => void;
+type StartStopNotifier<T> = (set: Subscriber<T>, update: (fn: Updater<T>) => void) => Unsubscriber | void;
 export type Updater<T> = (value: T) => T;
 export type { Subscriber, Unsubscriber };
 
-export interface Readable<T> {
+export interface ReadonlyStore<T> {
   /**
    * Return the current value.
    */
-  get(): T;
+  readonly state: T;
 
   /**
    * Subscribe to changes with a callback. Returns an unsubscribe function.
@@ -16,11 +16,11 @@ export interface Readable<T> {
   subscribe(callback: Subscriber<T>): Unsubscriber;
 }
 
-export interface Writable<T> extends Readable<T> {
+export interface Store<T> extends ReadonlyStore<T> {
   /**
-   * Set the value and inform subscribers.
+   * Get or set the current value.
    */
-  set(value: T): void;
+  state: T;
 
   /**
    * Update the value using the provided function and inform subscribers.
@@ -39,10 +39,10 @@ type Root = {
 };
 type Subscribers<T> = Map<Subscriber<T>, [Unsubscriber, Invalidator?]>;
 
-const noop = () => {};
+const noop = () => { };
 const subscribersKey = Symbol();
 
-// Ensure 2 versions of the signal library can work together
+// Ensure 2 versions of the store library can work together
 const symbol = Symbol.for('reactiveStores');
 const root: Root =
   globalThis[symbol] ||
@@ -52,17 +52,30 @@ const root: Root =
   });
 
 /**
- * Creates a `Readable` store that allows reading by subscription.
+ * Clear the global reactive store context. Useful for testing to ensure a clean state between tests.
  */
-export function readable<T>(initialValue?: T, start?: StartStopNotifier<T>): Readable<T> {
-  const { get, subscribe } = writable(initialValue, start);
-  return { get, subscribe };
+export function clearAllContext() {
+  root.context = null;
+  root.subscriberQueue = new Map();
 }
 
 /**
- * Create a `Writable` store that allows both updating and reading by subscription.
+ * Creates a `ReadonlyStore` that allows reading by subscription.
  */
-export function writable<T>(value: T, start: StartStopNotifier<T> = noop): Writable<T> {
+export function readonly<T>(initialValue?: T, start?: StartStopNotifier<T>): ReadonlyStore<T> {
+  const s = store(initialValue, start);
+  return {
+    get state() {
+      return s.state;
+    },
+    subscribe: s.subscribe,
+  };
+}
+
+/**
+ * Create a `Store` that allows both updating and reading by subscription.
+ */
+export function store<T>(value: T, start: StartStopNotifier<T> = noop): Store<T> {
   let stop: Unsubscriber;
   let started = false;
   const subscribers: Subscribers<T> = new Map();
@@ -133,7 +146,7 @@ export function writable<T>(value: T, start: StartStopNotifier<T> = noop): Writa
       stop = start(set, update) || noop;
     }
 
-    // If invalidate is provided, this comes from a derived store and we should not call the subscriber immediately
+    // If invalidate is provided, this comes from a computed store and we should not call the subscriber immediately
     if (!invalidate) {
       subscriber(value);
     }
@@ -141,30 +154,39 @@ export function writable<T>(value: T, start: StartStopNotifier<T> = noop): Writa
     return unsubscribe;
   }
 
-  return { get, set, update, subscribe };
+  return {
+    get state() {
+      return get();
+    },
+    set state(newValue: T) {
+      set(newValue);
+    },
+    update,
+    subscribe,
+  };
 }
 
 /**
- * Observe stores and derived values by synchronizing one or more readable stores within an aggregation function.
+ * Watch stores and computed values by running a function whenever any stores accessed within it change.
  */
-export function observe<T>(fn: (priorReturn: T) => T): Unsubscriber {
-  const store = derived(fn);
-  return store.subscribe(noop);
+export function watch<T>(fn: (priorReturn: T) => T): Unsubscriber {
+  const s = computed(fn);
+  return s.subscribe(noop);
 }
 
 /**
- * Create a `Readable` store that derives its value from other stores and updates when those stores change.
+ * Create a `ReadonlyStore` that computes its value from other stores and updates when those stores change.
  */
-export function derived<T>(fn: (priorValue: T) => T, value?: T): Readable<T> {
+export function computed<T>(fn: (priorValue: T) => T, value?: T): ReadonlyStore<T> {
   let unsubscribes = new Set<Unsubscriber>();
 
-  return readable(value, set => {
+  return readonly(value, set => {
     const subscribers = set[subscribersKey] as Subscribers<T>;
     let pending = 0;
     const subscriber = () => --pending === 0 && sync();
     const invalidate = () => {
       pending++;
-      // Ensure derived stores that have multiple overlapping dependencies only trigger once after others
+      // Ensure computed stores that have multiple overlapping dependencies only trigger once after others
       forExistsInBoth(subscribers, new Map(root.subscriberQueue), subscriber => {
         // move to the end of the queue
         const value = root.subscriberQueue.get(subscriber);
@@ -176,22 +198,22 @@ export function derived<T>(fn: (priorValue: T) => T, value?: T): Readable<T> {
     const sync = () => {
       const prior = root.context;
 
-      // Set the context for the derived function
+      // Set the context for the computed function
       root.context = { subscriber, invalidate, unsubscribes: new Set() };
 
       try {
-        // Run the effect collecting all the unsubscribes from the signals that are called when it is run
+        // Run the function, collecting subscriptions from any stores accessed during execution
         value = fn(value);
         if (value instanceof Promise) {
           throw new Error(
-            'derived() should not be used with async methods (it won’t update when dependant stores change).'
+            'computed() should not be used with async methods (it won\'t update when dependent stores change).'
           );
         }
       } finally {
         // Filter out unchanged unsubscribes, leaving only those which no longer apply
         root.context.unsubscribes.forEach(u => unsubscribes.delete(u));
 
-        // Unsubscribe from all the signals that are no longer needed
+        // Unsubscribe from all the stores that are no longer needed
         unsubscribes.forEach(u => u());
 
         // Set the new unsubscribes
@@ -217,45 +239,64 @@ export function batch(fn: () => void) {
 }
 
 /**
- * Provides a promise that resolves when the store is no longer `null` or `undefined` and continues to return the latest
- * value when it changes (i.e. it does not resolve once and remain at that value).
+ * Provides a promise that resolves when the store is no longer `null` or `undefined`.
+ * Optionally accepts an AbortSignal to cancel the wait.
  */
-export function whenReadable<T>(store: Readable<T>): Promise<T> {
-  return whenMatches(store, v => v != null) as Promise<T>;
+export function whenReady<T>(store: ReadonlyStore<T>, options?: { signal?: AbortSignal }): Promise<T> {
+  return whenMatches(store, v => v != null, options) as Promise<T>;
 }
 
 /**
- * Provides a promise that resolves when the store's value meets the provided condition and will continue to return the
- * latest value as long as it meets the condition. It will not resolve once and remain at that value like a regular
- * promise.
+ * Provides a promise that resolves when the store's value meets the provided condition.
+ * Optionally accepts an AbortSignal to cancel the wait.
  */
-export function whenMatches<T>(store: Readable<T>, matches: (value: T) => boolean): Promise<T> {
-  return {
-    then: (resolve: (value: T) => any) => {
-      const value = store.get();
-      if (matches(value)) return resolve(value);
-      const unsubscribe = store.subscribe(value => {
-        if (!matches(value)) return;
-        unsubscribe();
-        resolve(value);
-      });
-    },
-    catch() {},
-    finally() {},
-  } as Promise<T>;
+export function whenMatches<T>(store: ReadonlyStore<T>, matches: (value: T) => boolean, options?: { signal?: AbortSignal }): Promise<T> {
+  return awaitStore(store, options, (value, resolve) => {
+    if (matches(value)) {
+      resolve(value);
+      return true;
+    }
+    return false;
+  });
 }
 
 /**
  * Provides a promise that resolves after the store changes and returns the new value.
+ * Optionally accepts an AbortSignal to cancel the wait.
  */
-export function afterChange<T>(store: Readable<T>): Promise<T> {
-  return new Promise(resolve => {
-    let init = true;
-    const unsubscribe = store.subscribe(value => {
-      if (init) return (init = false);
+export function afterChange<T>(store: ReadonlyStore<T>, options?: { signal?: AbortSignal }): Promise<T> {
+  let init = true;
+  return awaitStore(store, options, (value, resolve) => {
+    if (init) {
+      init = false;
+      return false;
+    }
+    resolve(value);
+    return true;
+  });
+}
+
+function awaitStore<T>(
+  store: ReadonlyStore<T>,
+  options: { signal?: AbortSignal } | undefined,
+  check: (value: T, resolve: (value: T) => void) => boolean,
+): Promise<T> {
+  return new Promise((resolve, reject) => {
+    function onAbort() {
       unsubscribe();
-      resolve(value);
+      reject(options.signal.reason);
+    }
+
+    const unsubscribe = store.subscribe(value => {
+      if (!check(value, resolve)) return;
+      unsubscribe();
+      options?.signal?.removeEventListener('abort', onAbort);
     });
+
+    if (options?.signal) {
+      if (options.signal.aborted) onAbort();
+      else options.signal.addEventListener('abort', onAbort);
+    }
   });
 }
 

@@ -1,76 +1,70 @@
 import type { Unsubscriber } from './types';
 
-type Args<T> = T extends (...args: infer A) => any ? A : never;
 export type SignalSubscriber = (...args: any[]) => any;
 export type ErrorSubscriber = (error: Error) => any;
 export type { Unsubscriber };
+type Args<T> = T extends (...args: infer A) => any ? A : never;
 
-export type OnSignal<T extends SignalSubscriber = SignalSubscriber> = {
+export type Signal<T extends SignalSubscriber = SignalSubscriber> = {
   (subscriber: T): Unsubscriber;
-  (errorListener: ErrorSubscriber, what: typeof ForErrors): Unsubscriber;
+  error: (errorListener: ErrorSubscriber) => Unsubscriber;
+  emit: (...args: Args<T>) => Promise<void>;
+  emitError: (error: Error) => Promise<void>;
+  clear: () => void;
 };
-
-export type Signal<T extends SignalSubscriber = SignalSubscriber> = OnSignal<T> & {
-  (...args: Args<T>): Promise<void>;
-  (data: Error): Promise<void>;
-  (data: typeof ClearSignal): void;
-  (data: typeof GetSubscribe): OnSignal<T>;
-};
-
-export const ClearSignal = Symbol();
-export const GetSubscribe = Symbol();
-export const ForErrors = Symbol();
 
 /**
  * Creates a signal, a function that can be used to subscribe to events. The signal can be called with a subscriber
- * function, which will be called when the signal is dispatched. The signal can also be called with data, which will
- * dispatch to all subscribers. An optional second argument can be passed to subscribe to errors instead. When the
- * signal is called with an instance of Error, it will dispatch to all error listeners.
- * The signal can also be called with `ClearSignal`, which will clear all subscribers.
+ * function to register event listeners. It has methods for emitting events, handling errors, and managing subscriptions.
+ *
  * @example
- * const onLoad = signal();
+ * const onLoad = signal<(data: string) => void>();
  *
  * // Subscribe to data
  * onLoad((data) => console.log('loaded', data));
- * onLoad((error) => console.error('error', error), true);
  *
- * // Dispatch data
- * onLoad('data'); // logs 'loaded data'
- * onLoad(new Error('error')); // logs 'error Error: error'
+ * // Subscribe to errors
+ * onLoad.error((error) => console.error('error', error));
+ *
+ * // Emit data to subscribers
+ * await onLoad.emit('data'); // logs 'loaded data'
+ *
+ * // Emit an error to error listeners
+ * await onLoad.emitError(new Error('something failed'));
+ *
+ * // Clear all subscribers
+ * onLoad.clear();
  */
 export function signal<T extends SignalSubscriber = SignalSubscriber>(): Signal<T> {
   const subscribers = new Set<SignalSubscriber>();
-  const errorListeners = new Set<SignalSubscriber>();
+  const errorListeners = new Set<ErrorSubscriber>();
 
-  function onSignal(subscriber: T | ErrorSubscriber, what?: typeof ForErrors): Unsubscriber {
-    const listeners = what === ForErrors ? errorListeners : subscribers;
-    listeners.add(subscriber);
+  function signal(subscriber: T): Unsubscriber {
+    subscribers.add(subscriber);
     return () => {
-      listeners.delete(subscriber);
+      subscribers.delete(subscriber);
     };
   }
 
-  function signal(...args: Args<T>): Promise<void>;
-  function signal(error: Error): Promise<void>;
-  function signal(data: typeof ClearSignal): void;
-  function signal(data: typeof GetSubscribe): OnSignal<T>;
-  function signal(subscriber: T): Unsubscriber;
-  function signal(errorListener: SignalSubscriber, what: typeof ForErrors): Unsubscriber;
-  function signal(...args: any[]): Unsubscriber | OnSignal<T> | void | Promise<void> {
-    const arg = args[0];
-    if (typeof arg === 'function') {
-      return onSignal(arg);
-    } else if (arg === ClearSignal) {
-      subscribers.clear();
-      errorListeners.clear();
-    } else if (arg === GetSubscribe) {
-      return onSignal as OnSignal<T>;
-    } else if (arg instanceof Error) {
-      return Promise.all(Array.from(errorListeners).map(listener => listener(arg))).then(() => {});
-    } else {
-      return Promise.all(Array.from(subscribers).map(listener => listener(...args))).then(() => {});
-    }
-  }
+  signal.emit = async (...args: Args<T>) => {
+    await Promise.allSettled(Array.from(subscribers).map(listener => listener(...args)));
+  };
+
+  signal.emitError = async (error: Error) => {
+    await Promise.allSettled(Array.from(errorListeners).map(listener => listener(error)));
+  };
+
+  signal.error = (errorListener: ErrorSubscriber): Unsubscriber => {
+    errorListeners.add(errorListener);
+    return () => {
+      errorListeners.delete(errorListener);
+    };
+  };
+
+  signal.clear = () => {
+    subscribers.clear();
+    errorListeners.clear();
+  };
 
   return signal;
 }

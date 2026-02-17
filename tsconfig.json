@@ -5,7 +5,6 @@
     "moduleResolution": "node",
     "sourceMap": true,
     "esModuleInterop": true,
-    "allowJs": true,
     "allowSyntheticDefaultImports": true,
     "isolatedModules": true,
     "lib": ["es2021", "dom"],

@@ -1,10 +1,10 @@
 # Easy Signal
 
-Two interfaces for creating two types of signals. The first (and original signal in this module) is a function that
-defines an event and can be triggered and listened to with the single function. The second is a reactive data store that
-allows to react to changes (popularized by solid-js). These two are `Signal` and `Readable`/`Writable`.
+Two types of signals for reactive programming. **Event signals** are functions for listening to and emitting events.
+**Store signals** are reactive data containers that track changes and automatically update dependents, similar to
+Solid.js signals.
 
-Full type safety with TypeScript with both use-cases.
+Full type safety with TypeScript for both.
 
 ## Installation
 
@@ -14,172 +14,242 @@ npm install easy-signal
 
 ## Signal Usage
 
-A Signal is a function that represents a single event. The function can be used to subscribe to be notified of
-the events as well as to trigger them.
+A Signal is a function that represents a single event. Call it with a function to subscribe. Use `.emit()` to dispatch.
 
-Signals offer similar functionality as the browser's `eventDispatcher` API, but rather than a general API for any
-event, each event would use its own signal. This allows each signal to have a specific function signature as opposed to
-the browser's generic `event` object. This is a great system in TypeScript being able to see the exact data each event
-produces.
+Unlike the browser's `EventTarget` API where all events share a generic `Event` object, each signal has its own typed
+signature. This makes signals excellent for TypeScript — you can see exactly what data each event produces.
 
-### Signal Basic Usage
+### Basic Usage
 
 ```ts
 // file seconds.ts
 import { signal } from 'easy-signal';
 
-// Create the signal and export it for use. Optionally provide the subscriber signature
-export const onSecond = signal<number>();
+// Create the signal with a typed subscriber signature
+export const onSecond = signal<(seconds: number) => void>();
 
-// Passing a non-function value will dispatch the event
 setInterval(() => {
   const currentSecond = Math.floor(Date.now() / 1000);
-  onSecond(currentSecond);
-});
+  onSecond.emit(currentSecond);
+}, 1000);
 ```
 
 ```ts
-import { onSecond } from './seconds.ts';
+import { onSecond } from './seconds';
 
-// Typescript knows that seconds is a number because of the concrete type definition in seconds.ts
+// TypeScript knows that seconds is a number
 const unsubscribe = onSecond(seconds => {
-  console.log(seconds, 'since epoc');
+  console.log(seconds, 'since epoch');
 });
 ```
 
-Errors may also be listened to from the signal by passing `ForErrors` as the second parameter when adding the listener
-and errors may be dispatched by passing an Error object to the signal method.
+### Error Handling
+
+Subscribe to errors separately and emit them with `.emitError()`:
 
 ```ts
-import { signal, ForErrors } from 'easy-signal';
+import { signal } from 'easy-signal';
 
-const dataStream = signal();
+const dataStream = signal<(data: any) => void>();
 
-dataStream(data => console.log('data is:' data));
-dataStream(error => console.log('Error is:' error), ForErrors);
+dataStream(data => console.log('data:', data));
+dataStream.error(error => console.log('error:', error));
 
-stream.on('data', obj => dataStream(obj));
-stream.on('error', err => dataStream(err));
+stream.on('data', obj => dataStream.emit(obj));
+stream.on('error', err => dataStream.emitError(err));
 ```
 
-To get a subscriber-only method for external use, pass in the `GetOnSignal` constant.
+### Clearing Subscribers
 
 ```ts
-import { signal, GetOnSignal } from 'easy-signal';
-
-function getMyAPI() {
-  const doSomething = signal();
-
-  // doSomething() will trigger subscribers that were added in onSomething(...). This protects the signal from being
-  // triggered/dispatched outside of `getMyAPI`. Sometimes you may want more control to prevent just anyone from
-  // triggering the event.
-
-  return {
-    onSomething: doSomething(GetOnSignal),
-  };
-}
-```
-
-To clear the listeners from the signal, pass in the `ClearSignal` constant.
-
-```ts
-import { signal, ClearSignal } from 'easy-signal';
+import { signal } from 'easy-signal';
 
 const onSomething = signal();
 
-onSomething(ClearSignal); // clears signal
+onSomething.clear(); // removes all subscribers and error listeners
 ```
 
 ## Store Usage
 
-A store is an object that represents a single piece of data. The store's methods can be used to `get`, `set`, and
-`update` the data and `subscribe` to changes on the data. An `observe` function allows for a given function to be rerun
-whenever any stores it depends on are changed. And a `derived` function allows a readonly store to be created which
-depends on, or is derived from, other stores. Both `observe` and `derived` automatically track dependencies within the
-scope of their function.
+A store is a reactive container for a single value. Read and write with `.state`, subscribe to changes with
+`.subscribe()`, and use `computed()` and `watch()` for automatic dependency tracking.
 
-### Store Basic Usage
-
-Here we will use an example similar to the Signal, but unlike the Signal, the current seconds since epoch will
-be stored and can be accessed any time, whereas the Signal only fires an event with the data provided. This
-particular example isn't very compelling.
+### Basic Usage
 
 ```ts
 // file seconds.ts
-import { writable } from 'easy-signal';
+import { store } from 'easy-signal';
 
-// Create the signal and export it for use. Optionally provide the subscriber signature
-export const onSecond = writable(0);
+export const seconds = store(0);
 
-// Passing a non-function value will dispatch the event
 setInterval(() => {
-  const currentSecond = Math.floor(Date.now() / 1000);
-  onSecond.set(currentSecond);
-});
+  seconds.state = Math.floor(Date.now() / 1000);
+}, 1000);
 ```
 
 ```ts
-import { onSecond } from './seconds.ts';
+import { seconds } from './seconds';
 
-// Get the value of onSecond.get() at any time
-console.log(onSecond.get(), 'since epoc');
+// Read the value at any time
+console.log(seconds.state, 'since epoch');
 
-// Typescript knows that seconds is a number because of the concrete type definition in seconds.ts
-const unsubscribe = onSecond.subscribe(seconds => {
-  console.log(seconds, 'since epoc');
+// Subscribe to changes
+const unsubscribe = seconds.subscribe(value => {
+  console.log(value, 'since epoch');
 });
 ```
 
-### `observe` Basic Usage
+### `readonly` Stores
 
-To take action whenever data changes, you can observe one or more signals by accessing them in a function call. Below,
-we update the content of the DOM whenever the user or billing data is updated, but we only do it after an animation
-frame to prevent the DOM updates from being too frequent.
-
-Because `user.get()` and `billing.get()` are called the first time the observe function is run, it automatically
-subscribes to know when they are changed so that the function may be rerun.
-
-Note that easy-signal provides 3 simple debounce functions to make it easy to have effects happen less often while still
-allowing the stores to always be accurate:
-
-- `onAnimationFrame`
-- `onTick`
-- `onTimeout`
+Create a store that exposes only the `.state` getter and `.subscribe()`, hiding the setter. Useful for encapsulating
+stores where the value is set internally via a `start` notifier.
 
 ```ts
-import { writable, observe, onAnimationFrame } from 'easy-signal';
+import { readonly } from 'easy-signal';
 
-const user = writable(userData);
-const billing = writable(billingData);
+const time = readonly<number>(undefined, set => {
+  const id = setInterval(() => set(Date.now()), 1000);
+  return () => clearInterval(id);
+});
 
-const updateDom = onAnimationFrame((name, plan) => {
-  // will be called with only the most recent values if updateDom was called multiple times between frames
+console.log(time.state); // current time, updated every second
+```
+
+### `watch`
+
+Run a function whenever any store accessed within it changes. Dependencies are tracked automatically.
+
+```ts
+import { store, watch, onAnimationFrame } from 'easy-signal';
+
+const user = store(userData);
+const billing = store(billingData);
+
+const updateDom = onAnimationFrame((name: string, plan: string) => {
   document.body.innerText = `${name} has the plan ${plan}`;
 });
 
-const unobserve = observe(() => {
-  updateDom(user.get().name, billing.get().plan);
+const unwatch = watch(() => {
+  updateDom(user.state.name, billing.state.plan);
 });
 ```
 
-### `derived` Basic Usage
+### `computed`
 
-Create read-only signals whose value is derived from other signals and which will be updated whenever they are.
+Create a read-only store whose value is computed from other stores. Re-runs automatically when dependencies change.
 
 ```ts
-import { derived } from 'easy-signal';
-import { user, billing } from 'my-other-signals';
+import { computed } from 'easy-signal';
+import { user, billing } from './my-stores';
 
-const delinquent = derived(() => {
-  if (user.get().subscribed) {
-    return billing.get().status === 'delinquent';
+const delinquent = computed(() => {
+  if (user.state.subscribed) {
+    return billing.state.status === 'delinquent';
   }
   return false;
 });
 
-delinquent.subscribe(delinquent => {
-  console.log(`The user is${delinquent ? '' : ' not'} delinquent`);
+delinquent.subscribe(value => {
+  console.log(`The user is${value ? '' : ' not'} delinquent`);
 });
 ```
 
-`batch(fn: () => void)` allows updating multiple stores and only triggering those updates once at the end.
+### `batch`
+
+Update multiple stores and only notify subscribers once at the end:
+
+```ts
+import { store, computed, batch } from 'easy-signal';
+
+const a = store(1);
+const b = store(2);
+const c = computed(() => a.state + b.state);
+
+c.subscribe(aPlusB => console.log('a + b =', aPlusB));
+
+batch(() => {
+  a.state = 10;
+  b.state = 20;
+  // subscribers are notified once here, not twice, "a + b = 30" is only logged once
+});
+```
+
+### `whenReady` and `whenMatches`
+
+Await a store reaching a certain condition. All when/after helpers support `AbortSignal` for cancellation:
+
+```ts
+import { store, whenReady, whenMatches } from 'easy-signal';
+
+const user = store<User | null>(null);
+
+// Resolves when the store is no longer null or undefined
+const value = await whenReady(user);
+
+// Resolves when a custom condition is met
+const admin = await whenMatches(user, u => u?.role === 'admin');
+
+// With a timeout
+const controller = new AbortController();
+setTimeout(() => controller.abort(), 5000);
+
+try {
+  const value = await whenReady(user, { signal: controller.signal });
+} catch (e) {
+  console.log('Timed out waiting');
+}
+```
+
+### `afterChange`
+
+Await the next change to a store:
+
+```ts
+import { store, afterChange } from 'easy-signal';
+
+const count = store(0);
+
+// Wait for the next change
+const newValue = await afterChange(count);
+
+// With a timeout
+const controller = new AbortController();
+setTimeout(() => controller.abort(), 5000);
+
+try {
+  const value = await afterChange(count, { signal: controller.signal });
+} catch (e) {
+  console.log('Timed out waiting for change');
+}
+```
+
+### `clearAllContext`
+
+Reset the global reactive context. Useful for test isolation:
+
+```ts
+import { clearAllContext } from 'easy-signal';
+
+afterEach(() => {
+  clearAllContext();
+});
+```
+
+## Debounce Utilities
+
+Three debounce functions for controlling how often effects run:
+
+- `onTick(fn)` — debounce until the next microtask
+- `onTimeout(fn, delay?)` — debounce until the next `setTimeout`
+- `onAnimationFrame(fn)` — debounce until the next animation frame
+
+```ts
+import { onAnimationFrame } from 'easy-signal';
+
+const render = onAnimationFrame((x: number, y: number) => {
+  element.style.transform = `translate(${x}px, ${y}px)`;
+});
+
+// Called many times, but only the last values are used per frame
+document.addEventListener('mousemove', e => render(e.clientX, e.clientY));
+```
