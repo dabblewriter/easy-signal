@@ -208,6 +208,57 @@ const count = store(0);
 const newValue = await afterChange(count);
 ```
 
+### Store Classes
+
+`ReadonlyStoreClass<T>` and `StoreClass<T>` are base classes for building your own store-like classes. Use them when
+you want a class that behaves as a store without manually delegating `.state` and `.subscribe()`.
+
+```ts
+import { ReadonlyStoreClass } from 'easy-signal';
+
+class Timer extends ReadonlyStoreClass<number> {
+  constructor() {
+    super(0, set => {
+      const id = setInterval(() => set(Date.now()), 1000);
+      return () => clearInterval(id);
+    });
+  }
+}
+
+const timer = new Timer();
+timer.subscribe(value => console.log(value)); // reactive
+console.log(timer.state); // current value
+```
+
+`StoreClass<T>` extends `ReadonlyStoreClass<T>` and exposes the `.state` setter publicly:
+
+```ts
+import { StoreClass } from 'easy-signal';
+
+class Counter extends StoreClass<number> {
+  constructor() {
+    super(0);
+  }
+
+  increment() {
+    this.state++;
+  }
+}
+```
+
+The `ReadonlyStore<T>` and `Store<T>` interfaces remain available for typing. Use `implements` for the type contract
+and `extends` for the base class:
+
+```ts
+import type { ReadonlyStore } from 'easy-signal';
+
+function logStore(store: ReadonlyStore<number>) {
+  store.subscribe(v => console.log(v));
+}
+
+logStore(new Timer()); // works — Timer satisfies ReadonlyStore<number>
+```
+
 ### `clearAllContext`
 
 Reset the global reactive context. Useful for test isolation:

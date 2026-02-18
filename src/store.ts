@@ -22,11 +22,6 @@ export interface Store<T> extends ReadonlyStore<T> {
    * Get or set the current value.
    */
   state: T;
-
-  /**
-   * Update the value using the provided function and inform subscribers.
-   */
-  update(fn: Updater<T>): void;
 }
 
 type Context = {
@@ -58,6 +53,40 @@ const root: Root =
 export function clearAllContext() {
   root.context = null;
   root.subscriberQueue = new Map();
+}
+
+export class ReadonlyStoreClass<T> {
+  #store: Store<T>;
+
+  constructor(initialValue?: T, start?: StartStopNotifier<T>) {
+    this.#store = store(initialValue, start);
+    this.subscribe = this.#store.subscribe;
+  }
+
+  get state(): T {
+    return this.#store.state;
+  }
+
+  protected set state(value: T) {
+    this.#store.state = value;
+  }
+
+  /**
+   * Subscribe to changes with a callback. Returns an unsubscribe function.
+   * Pass `false` as the second argument to skip the immediate initial call.
+   */
+  subscribe: (callback: Subscriber<T>, noInit?: false) => Unsubscriber;
+}
+
+export class StoreClass<T> extends ReadonlyStoreClass<T> {
+
+  get state(): T {
+    return super.state;
+  }
+
+  set state(value: T) {
+    super.state = value;
+  }
 }
 
 /**
@@ -162,7 +191,6 @@ export function store<T>(value: T, start: StartStopNotifier<T> = noop): Store<T>
     set state(newValue: T) {
       set(newValue);
     },
-    update,
     subscribe,
   };
 }
