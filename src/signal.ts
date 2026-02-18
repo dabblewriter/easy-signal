@@ -1,4 +1,4 @@
-import type { Unsubscriber } from './types';
+import type { Unsubscriber } from './types.js';
 
 export type SignalSubscriber = (...args: any[]) => any;
 export type ErrorSubscriber = (error: Error) => any;

@@ -1,3 +1,3 @@
-export * from './debounce';
-export * from './signal';
-export * from './store';
+export * from './debounce.js';
+export * from './signal.js';
+export * from './store.js';

@@ -1,4 +1,4 @@
-import type { Subscriber, Unsubscriber } from './types';
+import type { Subscriber, Unsubscriber } from './types.js';
 type Invalidator = () => void;
 type StartStopNotifier<T> = (set: Subscriber<T>, update: (fn: Updater<T>) => void) => Unsubscriber | void;
 export type Updater<T> = (value: T) => T;
