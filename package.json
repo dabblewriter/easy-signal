@@ -1,6 +1,6 @@
 {
   "name": "easy-signal",
-  "version": "5.0.2",
+  "version": "5.0.3",
   "description": "Two types of signals: event signals for subscribing to and emitting events, and reactive store signals for tracking and reacting to state changes.",
   "main": "dist/index.js",
   "type": "module",
