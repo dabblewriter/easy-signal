@@ -47,7 +47,10 @@ export function signal<T extends SignalSubscriber = SignalSubscriber>(): Signal<
   }
 
   signal.emit = async (...args: Args<T>) => {
-    await Promise.allSettled(Array.from(subscribers).map(listener => listener(...args)));
+    const results = await Promise.allSettled(Array.from(subscribers).map(listener => listener(...args)));
+    for (const result of results) {
+      if (result.status === 'rejected') Promise.reject(result.reason);
+    }
   };
 
   signal.emitError = async (error: Error) => {
